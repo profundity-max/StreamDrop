@@ -9,3 +9,7 @@ reference/
 
 # Local implementation planning
 docs/plan.md
+
+# Python authoring/check caches
+__pycache__/
+*.pyc

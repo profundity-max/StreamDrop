@@ -44,3 +44,14 @@ python3 scripts/test.py
 包含可用的本地下载主流程、队列进度/调度、暂停/继续/取消/重试、历史搜索、独立存储、目录选择、网页解析和基础引导提取。未重建原版浏览器扩展、AppleScript/Shortcuts、Permute、字幕库、代理 UI、自定义集成、自动更新、购买/授权和专有站点解析器。部分文件恢复能力取决于来源服务；不声称与原版的下载引擎等价。
 
 模块责任与本次验证范围见 `docs/architecture.md`；领域用语见 `CONTEXT.md`。
+
+## 版本与发布记录
+
+当前版本以 `VERSION` 为准，构建号以 `BUILD_NUMBER` 为准。每次更新判断大版本、小版本或补丁，并同步变更说明、累计 Excel 和 Git 标签。
+
+- 变更说明：`CHANGELOG.md`
+- 累计 Excel：`docs/releases/StreamDrop-version-history.xlsx`
+- 发布数据：`docs/releases/history.json`
+- 发布流程与一致性检查：`docs/RELEASING.md`
+
+正式安装包与同版本 Excel 在 [GitHub Releases](https://github.com/profundity-max/StreamDrop/releases) 下载。

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/profundity-max/StreamDrop",
+  "currentVersion": "1.1.0",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "date": "2026-10-18",
+      "kind": "初始版本",
+      "status": "本地版本",
+      "build": 1,
+      "ref": null,
+      "reason": "初次提供可运行下载工具。",
+      "summary": "原生下载队列、暂停重试、历史、设置及引导浏览器。",
+      "tests": 15,
+      "limitations": "没有独立 Git 提交或标签。"
+    },
+    {
+      "version": "1.0.1",
+      "date": "2026-10-18",
+      "kind": "补丁版本",
+      "status": "本地版本",
+      "build": 2,
+      "ref": null,
+      "reason": "修复错误呈现及完成文件大小，不改变使用方式。",
+      "summary": "真实错误优先显示，保留诊断详情，按最终文件测量大小。",
+      "tests": 18,
+      "limitations": "没有独立 Git 提交或标签。"
+    },
+    {
+      "version": "1.0.2",
+      "date": "2026-10-18",
+      "kind": "补丁版本",
+      "status": "Git 初始快照",
+      "build": 3,
+      "ref": "1fba35d8543a0183150d23e2467bff597374beb5",
+      "reason": "修复本机画面解码兼容性与暂停竞态。",
+      "summary": "原生画面检查，必要时转换 H.264，再次验证。",
+      "tests": 21,
+      "limitations": "未单独发布 GitHub Release；平台覆盖有限。"
+    },
+    {
+      "version": "1.0.3",
+      "date": "2026-10-18",
+      "kind": "开发期编号",
+      "status": "归入 1.1.0",
+      "build": 4,
+      "ref": "1df71629c452bf38b5b0856449566fdd4bdb419a",
+      "reason": "三项架构改动原按补丁编号；正式发布前改判小版本。",
+      "summary": "执行生命周期、完成恢复、播放观察三项改动。",
+      "tests": 26,
+      "limitations": "无独立标签及发布，不能当作已发布版本。"
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-10-18",
+      "kind": "小版本",
+      "status": "正式标签版本",
+      "build": 5,
+      "ref": "v1.1.0",
+      "reason": "新增兼容的完成恢复与播放观察能力，旧数据可读。",
+      "summary": "统一终态与收尾；恢复完成提交；保存播放观察；建立 Excel 发布台账。",
+      "tests": 26,
+      "limitations": "跨卷中断归属未知时保留现场；首帧不代表全片质量；未公证。"
+    }
+  ],
+  "changes": [
+    {
+      "area": "下载执行",
+      "summary": "统一停止意图、单次终态与资源收尾。",
+      "verification": "真实直链 15 轮暂停只结算一次，保留网页/HLS 回归。",
+      "ref": "88941d449470150c67fbe211f6da90f6552a440f"
+    },
+    {
+      "area": "完成提交",
+      "summary": "恢复落盘和保存中断，保留清理责任与用户删除选择。",
+      "verification": "连续保存失败、重载幂等、清理失败、外来目标保护。",
+      "ref": "9f84d695f7c6b6888d27a63d50bc90fbd60c0b1b"
+    },
+    {
+      "area": "播放观察",
+      "summary": "持久保存 decoded / converted / unknown / notChecked。",
+      "verification": "真实 VP9 转换、原生画面、未知原因及历史重载。",
+      "ref": "1df71629c452bf38b5b0856449566fdd4bdb419a"
+    },
+    {
+      "area": "发布管理",
+      "summary": "统一版本来源、变更说明、Excel 台账与标签一致性检查。",
+      "verification": "检查 VERSION、构建号、所有 Excel 行、App 版本与 Git 标签。",
+      "ref": "v1.1.0"
+    }
+  ]
+}

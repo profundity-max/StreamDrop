@@ -64,5 +64,5 @@ struct PreferencesView:View {
         Divider()
         Text("不访问 Downie 的用户数据，不上传分析或下载记录。下载会连接你添加的网站；yt-dlp 可能连接媒体 CDN。引导提取浏览器使用临时网站数据，不导入其他浏览器 Cookie。 ").font(.caption).foregroundStyle(.secondary)
     }}
-    var about:some View {VStack(alignment:.leading,spacing:14){Image(systemName:"square.and.arrow.down.fill").font(.system(size:48)).foregroundStyle(accent);Text("StreamDrop 1.0.3").font(.title2.bold());Text("基于可观察界面与行为，使用原创 Swift 代码实现的独立 macOS 下载工具。与 Downie 及其开发者没有关联。 ");Text("界面：SwiftUI / AppKit\n直链：URLSession\n公共网页：本机 yt-dlp\n合并与音频：本机 FFmpeg\n素材：SF Symbols 与原创图标").font(.caption).foregroundStyle(.secondary)}}
+    var about:some View {VStack(alignment:.leading,spacing:14){Image(systemName:"square.and.arrow.down.fill").font(.system(size:48)).foregroundStyle(accent);Text("StreamDrop \(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "开发版本")").font(.title2.bold());Text("基于可观察界面与行为，使用原创 Swift 代码实现的独立 macOS 下载工具。与 Downie 及其开发者没有关联。 ");Text("界面：SwiftUI / AppKit\n直链：URLSession\n公共网页：本机 yt-dlp\n合并与音频：本机 FFmpeg\n素材：SF Symbols 与原创图标").font(.caption).foregroundStyle(.secondary)}}
 }

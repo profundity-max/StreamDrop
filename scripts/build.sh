@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+read -r APP_VERSION < VERSION
+read -r APP_BUILD < BUILD_NUMBER
+[[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+[[ "$APP_BUILD" =~ ^[1-9][0-9]*$ ]]
 mkdir -p output
 swift build -c release --arch arm64 --arch x86_64 --product StreamDrop
 BIN_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
@@ -21,8 +25,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>StreamDrop</string>
 <key>CFBundleExecutable</key><string>StreamDrop</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>4</string>
-<key>CFBundleShortVersionString</key><string>1.0.3</string>
+<key>CFBundleVersion</key><string>0</string>
+<key>CFBundleShortVersionString</key><string>0.0.0</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -31,6 +35,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>NSHumanReadableCopyright</key><string>Independent StreamDrop implementation. Not affiliated with Downie.</string>
 </dict></plist>
 PLIST
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $APP_BUILD" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP"
 codesign --verify --deep --strict "$APP"
 ditto -c -k --keepParent "$APP" output/StreamDrop-macOS.zip
