@@ -1,0 +1,11 @@
+.build/
+output/
+reference/
+.test-output/
+
+# Local macOS / editor files
+.DS_Store
+.swiftpm/
+
+# Local implementation planning
+docs/plan.md
