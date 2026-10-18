@@ -61,6 +61,7 @@ struct Preferences: Codable {
     var ffmpeg = ""
 }
 struct AppState: Codable {
+    var completionCleanup:[UUID]?
     var version = 1
     var jobs: [DownloadJob] = []
     var history: [DownloadJob] = []
@@ -105,16 +106,17 @@ enum FileNames {
 struct StateStore {
     let root: URL
     init(root: URL = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("StreamDrop")) { self.root = root }
-    func load() throws -> AppState {
+    func load() throws -> AppState {try loadWithRecovery().state}
+    func loadWithRecovery() throws -> (state:AppState,warnings:[String]) {
         let file = root.appendingPathComponent("state.json")
-        guard FileManager.default.fileExists(atPath:file.path) else { return AppState() }
-        var state = try JSONDecoder().decode(AppState.self,from:Data(contentsOf:file))
+        var state = FileManager.default.fileExists(atPath:file.path) ? try JSONDecoder().decode(AppState.self,from:Data(contentsOf:file)) : AppState()
         guard state.version == 1 else { throw InputError.invalid("不支持的数据版本；原状态文件保留在 \(file.path)") }
+        let warnings=try recoverCompletions(state:&state)
         for index in state.jobs.indices where state.jobs[index].status.active {
             state.jobs[index].status = .paused
             state.jobs[index].detail = "上次运行已中断；点击继续下载。"
         }
-        return state
+        return (state,warnings)
     }
     func save(_ state: AppState) throws {
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)

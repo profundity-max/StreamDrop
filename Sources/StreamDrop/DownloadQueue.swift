@@ -9,12 +9,13 @@ import Combine
     let store:StateStore
     private var transfers:[UUID:TransferRun]=[:]
     private var tokens:[UUID:UUID]=[:]
+    private var completionCleanup:[UUID]?
     private var loading=true
     private var storageBlocked=false
     private var progressSave=Date.distantPast
     init(store:StateStore=StateStore()) {
         self.store=store
-        do {let state=try store.load();jobs=state.jobs;history=state.history;preferences=state.preferences}
+        do {let loaded=try store.loadWithRecovery();let state=loaded.state;jobs=state.jobs;history=state.history;preferences=state.preferences;completionCleanup=state.completionCleanup;if !loaded.warnings.isEmpty{error=loaded.warnings.joined(separator:"\n")}}
         catch {self.error="无法读取状态文件。为保留原数据，本次不保存更改。\n\(error.localizedDescription)";storageBlocked=true}
         loading=false
     }
@@ -26,7 +27,7 @@ import Combine
     }
     func persist() {
         guard !loading,!storageBlocked else{return}
-        do {try store.save(AppState(jobs:jobs,history:history,preferences:preferences))}
+        do {try store.save(AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences))}
         catch {self.error="无法保存下载状态：\(error.localizedDescription)"}
     }
     private func schedule() {
@@ -60,17 +61,15 @@ import Combine
         case let .failed(message):
             update(id){$0.status = .failed;$0.detail=message}
         case let .finished(file,name):
-                do {
-                    let folder=URL(fileURLWithPath:job.folder,isDirectory:true)
-                    try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
-                    let target=FileNames.available(name,in:folder)
-                    // FileManager refuses an existing destination; concurrent external creators cannot be overwritten.
-                    try FileManager.default.moveItem(at:file,to:target)
-                    let finalSize=(try? target.resourceValues(forKeys:[.fileSizeKey]).fileSize).map(Int64.init)
-                    update(id){$0.status = .completed;$0.progress=1;$0.fileSize=finalSize;$0.outputPath=target.path;$0.title=target.lastPathComponent;$0.completedAt=Date();$0.detail=""}
-                    if let completed=jobs.first(where:{$0.id==id}) {history.insert(completed,at:0)}
-                    try? FileManager.default.removeItem(at:store.workDirectory(id))
-                } catch {update(id){$0.status = .failed;$0.detail="保存文件失败，下载内容保留在工作目录。\n\(error.localizedDescription)"}}
+            var state=AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences)
+            do {try store.complete(job:job,file:file,name:name,state:&state)}
+            catch {
+                self.error="完成保存或清理尚未结束，恢复记录已保留：\(error.localizedDescription)"
+                if state.jobs.first(where:{$0.id==id})?.status != .completed {
+                    if let index=state.jobs.firstIndex(where:{$0.id==id}){state.jobs[index].status = .failed;state.jobs[index].detail=self.error ?? ""}
+                }
+            }
+            jobs=state.jobs;history=state.history;completionCleanup=state.completionCleanup
         }
         tokens[id]=nil;transfers[id]=nil;persist();schedule()
     }
