@@ -21,8 +21,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>StreamDrop</string>
 <key>CFBundleExecutable</key><string>StreamDrop</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>3</string>
-<key>CFBundleShortVersionString</key><string>1.0.2</string>
+<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>1.0.3</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>

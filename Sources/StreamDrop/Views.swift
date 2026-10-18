@@ -100,6 +100,7 @@ struct DownloadRow:View {
                     if job.status == .completed {
                         if let size=job.fileSize {Text(byteString(size))}
                     } else if job.received>0 {Text(byteString(job.received)+(job.expected>0 ? " / "+byteString(job.expected):""))}
+                    if job.status == .completed {Text(job.playback?.label ?? "无画面验证记录").help(job.playback?.detail ?? "旧记录没有保存兼容性观察。") }
                     if !job.detail.isEmpty {Text(displayDetail).lineLimit(2).help(job.detail)}
                 }.font(.system(size:10)).foregroundStyle(job.status == .failed ? Color.red : Color.secondary)
             }
@@ -161,7 +162,7 @@ struct HistoryView:View {
     var body:some View {
         VStack(spacing:0){
             if items.isEmpty {VStack{Spacer();Text(queue.history.isEmpty ? "没有下载" : "没有匹配的记录").font(.system(size:22,weight:.bold)).foregroundStyle(.secondary);Spacer()}.frame(maxWidth:.infinity)}
-            else {List(items){job in HStack(spacing:14){Image(systemName:"checkmark.circle.fill").foregroundStyle(.green);VStack(alignment:.leading,spacing:3){Text(job.title).fontWeight(.medium);Text(job.url.absoluteString).font(.caption).foregroundStyle(.secondary).lineLimit(1);Text(job.completedAt ?? job.created,style:.date).font(.caption2).foregroundStyle(.secondary)};Spacer();Button("显示"){reveal(job)};Button("再下载"){do{try queue.add(job.url.absoluteString,kind:job.kind,mode:job.mode,quality:job.quality)}catch{queue.error=error.localizedDescription}}}.contextMenu{Button("移除记录（保留文件）"){queue.removeHistory(job.id)}}}}
+            else {List(items){job in HStack(spacing:14){Image(systemName:"checkmark.circle.fill").foregroundStyle(.green);VStack(alignment:.leading,spacing:3){Text(job.title).fontWeight(.medium);Text(job.url.absoluteString).font(.caption).foregroundStyle(.secondary).lineLimit(1);Text(job.playback?.label ?? "无画面验证记录").font(.caption2).foregroundStyle(.secondary).help(job.playback?.detail ?? "旧记录没有保存兼容性观察。");Text(job.completedAt ?? job.created,style:.date).font(.caption2).foregroundStyle(.secondary)};Spacer();Button("显示"){reveal(job)};Button("再下载"){do{try queue.add(job.url.absoluteString,kind:job.kind,mode:job.mode,quality:job.quality)}catch{queue.error=error.localizedDescription}}}.contextMenu{Button("移除记录（保留文件）"){queue.removeHistory(job.id)}}}}
             HStack{Text("\(queue.history.count) 条记录 · 文件保留在原位置").font(.caption).foregroundStyle(.secondary);Spacer()}.padding(10)
         }.background(canvas).searchable(text:$search,prompt:"搜索").toolbar{Menu("行为"){Button("清空历史记录…"){confirm=true}.disabled(queue.history.isEmpty)}}.frame(minWidth:640,minHeight:350)
          .alert("清空历史记录？",isPresented:$confirm){Button("取消",role:.cancel){};Button("清空记录",role:.destructive){queue.clearHistory()}}message:{Text("仅删除本应用的记录，不删除已下载文件。")}

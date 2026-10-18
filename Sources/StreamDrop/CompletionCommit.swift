@@ -33,7 +33,7 @@ extension StateStore {
         try FileManager.default.createDirectory(at:receipts,withIntermediateDirectories:true)
         try JSONEncoder().encode(receipt).write(to:receiptPath(receipt.job.id),options:.atomic)
     }
-    func complete(job:DownloadJob,file:URL,name:String,state:inout AppState)throws {
+    func complete(job:DownloadJob,file:URL,name:String,playback:PlaybackObservation?=nil,state:inout AppState)throws {
         // Recover any earlier attempt before selecting a new name or moving bytes.
         if FileManager.default.fileExists(atPath:receiptPath(job.id).path){_=try recoverCompletions(state:&state);return}
         guard file.standardizedFileURL.path.hasPrefix(workDirectory(job.id).standardizedFileURL.path+"/") else{
@@ -41,7 +41,8 @@ extension StateStore {
         }
         let folder=URL(fileURLWithPath:job.folder,isDirectory:true)
         try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
-        let receipt=CompletionReceipt(job:job,source:file,target:FileNames.available(name,in:folder),identity:try .read(file))
+        var observedJob=job;observedJob.playback=playback
+        let receipt=CompletionReceipt(job:observedJob,source:file,target:FileNames.available(name,in:folder),identity:try .read(file))
         try write(receipt)
         try settle(receipt,state:&state)
     }

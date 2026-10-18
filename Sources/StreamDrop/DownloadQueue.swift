@@ -52,6 +52,9 @@ import Combine
             update(id){$0.status = .downloading;$0.progress=max(0,min(1,progress));$0.received=received;$0.expected=expected;$0.detail=detail}
             if Date().timeIntervalSince(progressSave)>2 {persist();progressSave=Date()}
             return
+        case let .processing(progress,detail):
+            update(id){$0.status = .downloading;$0.progress=max(0,min(1,progress));$0.detail=detail}
+            return
         case let .paused(data):
             let resume=store.workDirectory(id).appendingPathComponent("resume.data")
             if let data {do{try ResumeRecord(data:data,url:job.url).encoded().write(to:resume,options:.atomic)}catch{self.error="断点数据未保存，下次将重新下载：\(error.localizedDescription)"}}
@@ -60,9 +63,9 @@ import Combine
             update(id){$0.status = .cancelled;$0.detail="已取消，可重试。"}
         case let .failed(message):
             update(id){$0.status = .failed;$0.detail=message}
-        case let .finished(file,name):
+        case let .finished(artifact):
             var state=AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences)
-            do {try store.complete(job:job,file:file,name:name,state:&state)}
+            do {try store.complete(job:job,file:artifact.file,name:artifact.name,playback:artifact.playback,state:&state)}
             catch {
                 self.error="完成保存或清理尚未结束，恢复记录已保留：\(error.localizedDescription)"
                 if state.jobs.first(where:{$0.id==id})?.status != .completed {

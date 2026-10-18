@@ -28,6 +28,7 @@ import Darwin
         XCTAssertEqual(q.history.count,2)
         let recovered=DownloadQueue(store:q.store)
         XCTAssertEqual(recovered.history.count,2)
+        XCTAssertEqual(recovered.history.first?.playback?.kind,.notChecked)
         XCTAssertEqual(recovered.jobs[0].url.query,"public=kept")
     }
     func testHTTPFailureAndHTMLNeverBecomeCompleted() async throws {
@@ -149,6 +150,7 @@ import Darwin
         try await wait({ q.jobs[0].status == .completed || q.jobs[0].status == .failed },seconds:30)
         XCTAssertEqual(q.jobs[0].status,.completed,q.jobs[0].detail)
         XCTAssertTrue(FileManager.default.fileExists(atPath:q.jobs[0].outputPath ?? "missing"))
+        XCTAssertEqual(q.jobs[0].playback?.kind,.decoded)
     }
 }
 
@@ -160,7 +162,7 @@ private final class TransferRecorder {
     var terminalCount:Int {lock.lock();defer{lock.unlock()};return terminals}
     var didPause:Bool {lock.lock();defer{lock.unlock()};return paused}
     var lateEvents:Int {lock.lock();defer{lock.unlock()};return count}
-    func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;terminals+=1;case .finished:terminals+=1;if paused{count+=1};case .failed,.cancelled:terminals+=1;case .progress:if paused{count+=1}}}
+    func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;terminals+=1;case .finished:terminals+=1;if paused{count+=1};case .failed,.cancelled:terminals+=1;case .progress,.processing:if paused{count+=1}}}
 }
 
 final class TransferBoundaryTests:XCTestCase {

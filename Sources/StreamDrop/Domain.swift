@@ -38,6 +38,7 @@ struct DownloadJob: Codable, Identifiable {
     var detail: String = ""
     var outputPath: String?
     var fileSize: Int64?
+    var playback:PlaybackObservation?
     var created = Date()
     var completedAt: Date?
     init(url: URL, kind: SourceKind, mode: MediaMode, quality: String, folder: String) {

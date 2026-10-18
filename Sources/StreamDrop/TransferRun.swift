@@ -21,7 +21,7 @@ import Foundation
     func cancel(){guard !settled else{return};stop = .cancel;adapter.cancel()}
     private func receive(_ event:TransferEvent){
         guard !settled else{return}
-        if case .progress=event {if stop==nil{emit(event)};return}
+        switch event {case .progress,.processing:if stop==nil{emit(event)};return;default:break}
         settled=true
         switch stop {
         case .cancel:emit(.cancelled)
