@@ -156,9 +156,11 @@ private final class TransferRecorder {
     private let lock=NSLock()
     private var paused=false
     private var count=0
+    private var terminals=0
+    var terminalCount:Int {lock.lock();defer{lock.unlock()};return terminals}
     var didPause:Bool {lock.lock();defer{lock.unlock()};return paused}
     var lateEvents:Int {lock.lock();defer{lock.unlock()};return count}
-    func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;case .progress,.finished:if paused{count+=1};default:break}}
+    func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;terminals+=1;case .finished:terminals+=1;if paused{count+=1};case .failed,.cancelled:terminals+=1;case .progress:if paused{count+=1}}}
 }
 
 final class TransferBoundaryTests:XCTestCase {
@@ -180,6 +182,7 @@ final class TransferBoundaryTests:XCTestCase {
             XCTAssertEqual(acknowledged.wait(timeout:.now()+2),.success)
             Thread.sleep(forTimeInterval:0.08)
             XCTAssertEqual(recorder.lateEvents,0,"No active transfer may survive pause acknowledgement")
+            XCTAssertEqual(recorder.terminalCount,1,"Each adapter must settle only once, after resource cleanup")
         }
     }
 }

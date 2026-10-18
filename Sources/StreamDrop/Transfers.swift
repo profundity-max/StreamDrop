@@ -5,6 +5,7 @@ enum TransferEvent {
     case finished(URL, String)
     case failed(String)
     case paused(Data?)
+    case cancelled
 }
 protocol Transfer: AnyObject { func start(); func pause(); func cancel() }
 
@@ -16,6 +17,12 @@ final class DirectTransfer: NSObject, Transfer, URLSessionDownloadDelegate {
     private var task: URLSessionDownloadTask?
     private var resuming=false
     private var stopping=false
+    private var wantsPause=false
+    private var waitingResume=false
+    private var resumeData:Data?
+    private var invalidated=false
+    private var settled=false
+    private var outcome:TransferEvent?
     private let taskLock=NSLock()
     init(job: DownloadJob, work: URL, emit:@escaping (TransferEvent)->Void) {
         self.job=job; self.work=work; self.emit=emit
@@ -41,11 +48,26 @@ final class DirectTransfer: NSObject, Transfer, URLSessionDownloadDelegate {
         task?.resume()
     }
     func pause() {
-        taskLock.lock();stopping=true;let current=task;taskLock.unlock()
-        if let current {current.cancel(byProducingResumeData:{[emit] data in emit(.paused(data))})}
-        else {emit(.paused(nil))}
+        taskLock.lock()
+        guard !settled,!wantsPause else{taskLock.unlock();return}
+        stopping=true;wantsPause=true;waitingResume=true
+        let current=task;taskLock.unlock()
+        if let current {current.cancel(byProducingResumeData:{[self] data in
+            taskLock.lock();resumeData=data;waitingResume=false;taskLock.unlock();settleIfReady()
+        })} else {taskLock.lock();waitingResume=false;taskLock.unlock();settleIfReady()}
     }
-    func cancel() {taskLock.lock();stopping=true;let current=task;taskLock.unlock();current?.cancel()}
+    func cancel(){taskLock.lock();stopping=true;let current=task;taskLock.unlock();current?.cancel()}
+    private func record(_ event:TransferEvent){taskLock.lock();outcome=event;taskLock.unlock()}
+    private func settleIfReady(){
+        taskLock.lock()
+        guard invalidated,!waitingResume,!settled else{taskLock.unlock();return}
+        settled=true
+        let result:TransferEvent=wantsPause ? .paused(resumeData) : (outcome ?? .failed("下载已停止。"))
+        taskLock.unlock();emit(result)
+    }
+    func urlSession(_ session:URLSession,didBecomeInvalidWithError error:Error?){
+        taskLock.lock();invalidated=true;taskLock.unlock();settleIfReady()
+    }
     func urlSession(_ session:URLSession, downloadTask:URLSessionDownloadTask, didWriteData bytesWritten:Int64,totalBytesWritten:Int64,totalBytesExpectedToWrite:Int64) {
         let progress=totalBytesExpectedToWrite>0 ? Double(totalBytesWritten)/Double(totalBytesExpectedToWrite) : 0
         emit(.progress(progress,totalBytesWritten,totalBytesExpectedToWrite,""))
@@ -54,17 +76,17 @@ final class DirectTransfer: NSObject, Transfer, URLSessionDownloadDelegate {
         taskLock.lock();let stopped=stopping;taskLock.unlock()
         guard !stopped else{return}
         guard let response=downloadTask.response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
-            emit(.failed("HTTP \((downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0)：服务器拒绝或无法找到文件。")); return
+            record(.failed("HTTP \((downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0)：服务器拒绝或无法找到文件。")); return
         }
         if response.mimeType?.lowercased().contains("text/html") == true {
-            emit(.failed("服务器返回了网页。请改用「网页视频」方式解析该链接。")); return
+            record(.failed("服务器返回了网页。请改用「网页视频」方式解析该链接。")); return
         }
         do {
             let file=work.appendingPathComponent("received")
             if FileManager.default.fileExists(atPath:file.path) { try FileManager.default.removeItem(at:file) }
             try FileManager.default.moveItem(at:location,to:file)
-            emit(.finished(file,response.suggestedFilename ?? job.title))
-        } catch { emit(.failed(error.localizedDescription)) }
+            record(.finished(file,response.suggestedFilename ?? job.title))
+        } catch { record(.failed(error.localizedDescription)) }
     }
     func urlSession(_ session:URLSession, task:URLSessionTask, didCompleteWithError error:Error?) {
         taskLock.lock()
@@ -80,8 +102,8 @@ final class DirectTransfer: NSObject, Transfer, URLSessionDownloadDelegate {
         }
         let stopped=stopping
         taskLock.unlock()
-        if let error {emit(.failed(error.localizedDescription))}
-        else if stopped {emit(.failed("下载已停止。"))}
+        if let error {record(.failed(error.localizedDescription))}
+        else if stopped {record(.failed("下载已停止。"))}
         session.finishTasksAndInvalidate()
     }
 
@@ -104,8 +126,7 @@ final class WebTransfer: Transfer {
     private var output:URL?
     private var received:Int64=0
     private var expected:Int64=0
-    private enum StopIntent {case pause,cancel}
-    private var intent:StopIntent?
+    private var stopped=false
     private let lock=NSLock()
     init(job:DownloadJob,preferences:Preferences,work:URL,emit:@escaping(TransferEvent)->Void){self.job=job;self.preferences=preferences;self.work=work;self.emit=emit}
     func start(){
@@ -148,14 +169,14 @@ final class WebTransfer: Transfer {
     /// exit can start conversion after pause/cancel has been acknowledged.
     private func launch(_ child:OwnedProcess,executable:String,arguments:[String]){
         lock.lock()
-        if intent != nil {lock.unlock();_=finishStopIfNeeded();return}
+        if stopped {lock.unlock();_=finishStopIfNeeded();return}
         process=child
         do{try child.start(executable:executable,arguments:arguments,environment:environment());lock.unlock()}
         catch{lock.unlock();emit(.failed("无法启动处理工具：\(error.localizedDescription)"))}
     }
     private func finishStopIfNeeded()->Bool{
-        lock.lock();let stopped=intent;lock.unlock()
-        if let stopped {emit(stopped == .pause ? .paused(nil) : .failed("已取消"));return true}
+        lock.lock();let requested=stopped;lock.unlock()
+        if requested {emit(.paused(nil));return true}
         return false
     }
     private func prepareOutput(_ file:URL) async {
@@ -220,6 +241,7 @@ final class WebTransfer: Transfer {
             } else if !line.isEmpty {tail=String((tail+"\n"+line).suffix(5000))}
         }
     }
-    func pause(){lock.lock();intent = .pause;let child=process;lock.unlock();child?.stop()}
-    func cancel(){lock.lock();intent = .cancel;let child=process;lock.unlock();child?.stop()}
+    private func stop(){lock.lock();stopped=true;let child=process;lock.unlock();child?.stop()}
+    func pause(){stop()}
+    func cancel(){stop()}
 }

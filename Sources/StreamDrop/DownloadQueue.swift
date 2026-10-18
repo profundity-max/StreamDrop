@@ -7,10 +7,8 @@ import Combine
     @Published var preferences=Preferences() {didSet{persist();schedule()}}
     @Published var error:String?
     let store:StateStore
-    private var transfers:[UUID:Transfer]=[:]
+    private var transfers:[UUID:TransferRun]=[:]
     private var tokens:[UUID:UUID]=[:]
-    private enum Intent {case pause,cancel}
-    private var intents:[UUID:Intent]=[:]
     private var loading=true
     private var storageBlocked=false
     private var progressSave=Date.distantPast
@@ -42,36 +40,26 @@ import Combine
         catch {update(job.id){$0.status = .failed;$0.detail=error.localizedDescription};return}
         let token=UUID();tokens[job.id]=token
         update(job.id){$0.status=job.useDirect ? .downloading : .resolving;$0.detail=""}
-        let callback:(TransferEvent)->Void={ [weak self] event in Task { @MainActor in self?.receive(event,id:job.id,token:token) } }
-        let transfer:Transfer=job.useDirect ? DirectTransfer(job:job,work:work,emit:callback) : WebTransfer(job:job,preferences:preferences,work:work,emit:callback)
+        let callback:(TransferEvent)->Void={ [weak self] event in self?.receive(event,id:job.id,token:token) }
+        let transfer=TransferRun(job:job,preferences:preferences,work:work,emit:callback)
         transfers[job.id]=transfer;persist();transfer.start()
     }
     private func receive(_ event:TransferEvent,id:UUID,token:UUID) {
         guard tokens[id]==token,let job=jobs.first(where:{$0.id==id}) else{return}
         switch event {
         case let .progress(progress,received,expected,detail):
-            guard intents[id]==nil else{return}
             update(id){$0.status = .downloading;$0.progress=max(0,min(1,progress));$0.received=received;$0.expected=expected;$0.detail=detail}
             if Date().timeIntervalSince(progressSave)>2 {persist();progressSave=Date()}
             return
         case let .paused(data):
             let resume=store.workDirectory(id).appendingPathComponent("resume.data")
             if let data {do{try ResumeRecord(data:data,url:job.url).encoded().write(to:resume,options:.atomic)}catch{self.error="断点数据未保存，下次将重新下载：\(error.localizedDescription)"}}
-            if intents[id] == .cancel {update(id){$0.status = .cancelled;$0.detail="已取消，可重试。"}}
-            else {update(id){$0.status = .paused;$0.detail=data == nil && job.useDirect ? "已暂停；服务器不支持续传时将重新下载。" : "已暂停"}}
+            update(id){$0.status = .paused;$0.detail="已暂停"}
+        case .cancelled:
+            update(id){$0.status = .cancelled;$0.detail="已取消，可重试。"}
         case let .failed(message):
-            if intents[id] == .pause {
-                // Only URLSession has an independent resume-data completion still pending.
-                // A web process failure is already terminal and must release its queue slot.
-                if job.useDirect {return}
-                update(id){$0.status = .paused;$0.detail="已暂停"}
-            } else {
-                update(id){$0.status=intents[id] == .cancel ? .cancelled : .failed;$0.detail=intents[id] == .cancel ? "已取消，可重试。" : message}
-            }
+            update(id){$0.status = .failed;$0.detail=message}
         case let .finished(file,name):
-            if let intent=intents[id] {
-                update(id){$0.status=intent == .pause ? .paused : .cancelled;$0.detail="下载已停止，可重试。"}
-            } else {
                 do {
                     let folder=URL(fileURLWithPath:job.folder,isDirectory:true)
                     try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
@@ -83,9 +71,8 @@ import Combine
                     if let completed=jobs.first(where:{$0.id==id}) {history.insert(completed,at:0)}
                     try? FileManager.default.removeItem(at:store.workDirectory(id))
                 } catch {update(id){$0.status = .failed;$0.detail="保存文件失败，下载内容保留在工作目录。\n\(error.localizedDescription)"}}
-            }
         }
-        tokens[id]=nil;transfers[id]=nil;intents[id]=nil;persist();schedule()
+        tokens[id]=nil;transfers[id]=nil;persist();schedule()
     }
     private func update(_ id:UUID,_ mutation:(inout DownloadJob)->Void) {
         guard let index=jobs.firstIndex(where:{$0.id==id}) else{return};mutation(&jobs[index])
@@ -94,12 +81,12 @@ import Combine
         guard let job=jobs.first(where:{$0.id==id}) else{return}
         if job.status == .queued {update(id){$0.status = .paused};persist();return}
         guard job.status.active,job.status != .pausing,let transfer=transfers[id] else{return}
-        intents[id] = .pause;update(id){$0.status = .pausing};persist();transfer.pause()
+        update(id){$0.status = .pausing};persist();transfer.pause()
     }
     func cancel(_ id:UUID) {
         guard let job=jobs.first(where:{$0.id==id}) else{return}
         if let transfer=transfers[id] {
-            intents[id] = .cancel;update(id){$0.status = .pausing};persist();transfer.cancel()
+            update(id){$0.status = .pausing};persist();transfer.cancel()
         } else if job.status != .completed {update(id){$0.status = .cancelled;$0.detail="已取消，可重试。"};persist()}
     }
     func resume(_ id:UUID) {
