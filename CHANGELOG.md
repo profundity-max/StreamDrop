@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1 — 2026-10-19
+
+**Patch release.** Correct webpage download filenames without changing existing history or files.
+
+- Preserve Unicode titles and spaces instead of forcing ASCII filenames.
+- Remove the automatically appended bracketed extractor ID. Keep brackets that belong to the title.
+- Retain collision numbering so downloads with the same title never overwrite each other.
+
+Validation: real local yt-dlp downloads of a Chinese title with spaces and natural brackets, twice to verify collision safety. Full suite: 27 tests. Existing filenames are retained; filesystem sanitation and length limits still apply.
+
 ## 1.1.0 — 2026-10-18
 
 **Minor release.** Recoverable completion and saved playback observations add

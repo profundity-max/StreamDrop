@@ -140,7 +140,7 @@ final class WebTransfer: Transfer {
         guard let tool=ToolPaths.find(preferences.ytDLP,name:"yt-dlp") else {
             emit(.failed("未找到 yt-dlp。请在设置 → 外部工具中选择已安装的可执行文件；文件直链可直接下载。"));return
         }
-        var args=["--ignore-config","--no-playlist","--newline","--no-colors","--restrict-filenames","--continue","--no-overwrites","--progress","--progress-template","download:SDPROGRESS:%(progress._percent_str)s|%(progress.downloaded_bytes)s|%(progress.total_bytes_estimate)s|%(progress._speed_str)s","--print","after_move:SDOUTPUT:%(filepath)s","-o",work.appendingPathComponent("%(title).130s [%(id).40s].%(ext)s").path]
+        var args=["--ignore-config","--no-playlist","--newline","--no-colors","--no-restrict-filenames","--continue","--no-overwrites","--progress","--progress-template","download:SDPROGRESS:%(progress._percent_str)s|%(progress.downloaded_bytes)s|%(progress.total_bytes_estimate)s|%(progress._speed_str)s","--print","after_move:SDOUTPUT:%(filepath)s","-o",work.appendingPathComponent("%(title).130s.%(ext)s").path]
         let ffmpeg=ToolPaths.find(preferences.ffmpeg,name:"ffmpeg")
         if let ffmpeg{args += ["--ffmpeg-location",ffmpeg]}
         if job.mode == .audio {

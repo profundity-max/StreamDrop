@@ -11,6 +11,11 @@ class Handler(BaseHTTPRequestHandler):
         path=self.path.split('?')[0]
         if path=='/missing.mp4':
             self.send_error(404); return
+        if path=='/named-page':
+            data='<html><head><title>中文 视频 [2026] 标题</title></head><body><video controls src="/sample.mp4"></video></body></html>'.encode('utf-8')
+            self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.end_headers()
+            if body:self.wfile.write(data)
+            return
         if path=='/page':
             data=b'<html><head><title>Local media fixture</title></head><body><video controls src="/sample.mp4"></video></body></html>'
             self.send_response(200); self.send_header('Content-Type','text/html'); self.send_header('Content-Length',str(len(data))); self.end_headers()

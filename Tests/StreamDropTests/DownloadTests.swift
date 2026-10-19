@@ -143,6 +143,22 @@ import Darwin
         XCTAssertTrue(DownloadDiagnostics.summary(log).hasPrefix("ERROR:"))
         XCTAssertTrue(q.history.isEmpty)
     }
+    func testWebFilenamePreservesTitleWithoutInjectedIDAndDoesNotOverwrite() async throws {
+        guard ToolPaths.find("",name:"yt-dlp") != nil else{throw XCTSkip("yt-dlp missing")}
+        let (q,root)=try makeQueue();defer{try? FileManager.default.removeItem(at:root)}
+        for count in 1...2 {
+            try q.add("http://127.0.0.1:18764/named-page",kind:.webpage)
+            try await wait({q.jobs.count==count && q.jobs.allSatisfy{[.completed,.failed].contains($0.status)}})
+            XCTAssertTrue(q.jobs.allSatisfy{$0.status == .completed},q.jobs.map{$0.detail}.joined(separator:"\n"))
+        }
+        for job in q.jobs {
+            XCTAssertTrue(job.title.hasPrefix("中文 视频 [2026] 标题"),job.title)
+            XCTAssertEqual(job.title.filter{$0=="["}.count,1,"Keep the title's own brackets, add no extractor ID")
+            XCTAssertEqual(job.title,URL(fileURLWithPath:try XCTUnwrap(job.outputPath)).lastPathComponent)
+        }
+        XCTAssertNotEqual(q.jobs[0].outputPath,q.jobs[1].outputPath)
+        XCTAssertEqual(q.history.count,2)
+    }
     func testActualYTDLPGenericWebpageDownload() async throws {
         guard ToolPaths.find("",name:"yt-dlp") != nil else { throw XCTSkip("yt-dlp not installed") }
         let (q,root)=try makeQueue(); defer {try? FileManager.default.removeItem(at:root)}
