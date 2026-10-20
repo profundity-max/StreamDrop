@@ -11,33 +11,42 @@ import Combine
     private var tokens:[UUID:UUID]=[:]
     private var completionCleanup:[UUID]?
     private var loading=true
-    private var storageBlocked=false
     private var progressSave=Date.distantPast
     init(store:StateStore=StateStore()) {
         self.store=store
         do {let loaded=try store.loadWithRecovery();let state=loaded.state;jobs=state.jobs;history=state.history;preferences=state.preferences;completionCleanup=state.completionCleanup;if !loaded.warnings.isEmpty{error=loaded.warnings.joined(separator:"\n")}}
-        catch {self.error="无法读取状态文件。为保留原数据，本次不保存更改。\n\(error.localizedDescription)";storageBlocked=true}
+        catch {self.error="无法读取状态文件。为保留原数据，本次不保存更改。\n\(error.localizedDescription)"}
         loading=false
     }
     func add(_ text:String,kind:SourceKind = .automatic,mode:MediaMode = .video,quality:String?=nil) throws {
+        try store.requireWritable()
         let urls=try LinkInput.parse(text)
         var additions=urls.map{ DownloadJob(url:$0,kind:kind,mode:mode,quality:quality ?? preferences.quality,folder:preferences.folder) }
         if !preferences.autoStart {for i in additions.indices {additions[i].status = .paused}}
         jobs.insert(contentsOf:additions,at:0);persist();schedule()
     }
     func persist() {
-        guard !loading,!storageBlocked else{return}
-        do {try store.save(AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences))}
+        guard !loading else{return}
+        do {try store.save(currentState)}
         catch {self.error="无法保存下载状态：\(error.localizedDescription)"}
     }
     private func schedule() {
-        guard !loading else{return}
+        guard !loading,store.canWrite else{return}
         let capacity=max(1,min(6,preferences.concurrency))
         while transfers.count<capacity,let job=jobs.first(where:{$0.status == .queued}) {start(job)}
     }
     private func start(_ job:DownloadJob) {
         let work=store.workDirectory(job.id)
-        do {try FileManager.default.createDirectory(at:work,withIntermediateDirectories:true)}
+        do {
+            var state=currentState
+            let readiness=try store.prepareExecution(for:job.id,state:&state)
+            apply(state)
+            if case let .recovered(warnings)=readiness {
+                if !warnings.isEmpty{self.error=warnings.joined(separator:"\n")}
+                return
+            }
+            try FileManager.default.createDirectory(at:work,withIntermediateDirectories:true)
+        }
         catch {update(job.id){$0.status = .failed;$0.detail=error.localizedDescription};return}
         let token=UUID();tokens[job.id]=token
         update(job.id){$0.status=job.useDirect ? .downloading : .resolving;$0.detail=""}
@@ -64,18 +73,20 @@ import Combine
         case let .failed(message):
             update(id){$0.status = .failed;$0.detail=message}
         case let .finished(artifact):
-            var state=AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences)
-            do {try store.complete(job:job,file:artifact.file,name:artifact.name,playback:artifact.playback,state:&state)}
+            var state=currentState
+            do {try store.complete(job:job,artifact:artifact,state:&state)}
             catch {
                 self.error="完成保存或清理尚未结束，恢复记录已保留：\(error.localizedDescription)"
                 if state.jobs.first(where:{$0.id==id})?.status != .completed {
                     if let index=state.jobs.firstIndex(where:{$0.id==id}){state.jobs[index].status = .failed;state.jobs[index].detail=self.error ?? ""}
                 }
             }
-            jobs=state.jobs;history=state.history;completionCleanup=state.completionCleanup
+            apply(state)
         }
         tokens[id]=nil;transfers[id]=nil;persist();schedule()
     }
+    private var currentState:AppState {AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences)}
+    private func apply(_ state:AppState){jobs=state.jobs;history=state.history;completionCleanup=state.completionCleanup}
     private func update(_ id:UUID,_ mutation:(inout DownloadJob)->Void) {
         guard let index=jobs.firstIndex(where:{$0.id==id}) else{return};mutation(&jobs[index])
     }

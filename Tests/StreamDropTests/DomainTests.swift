@@ -14,7 +14,7 @@ final class DomainTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         try Data("original".utf8).write(to: root.appendingPathComponent("video.mp4"))
-        let destination = FileNames.available("../video.mp4", in: root)
+        let destination = try FileNames.available("../video.mp4", in: root)
         XCTAssertEqual(destination.lastPathComponent, "video (2).mp4")
         XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("video.mp4")), "original")
     }

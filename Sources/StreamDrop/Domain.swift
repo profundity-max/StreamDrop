@@ -85,41 +85,39 @@ enum LinkInput {
         }
     }
 }
-enum FileNames {
-    static func safe(_ name: String) -> String {
-        let leaf = (name as NSString).lastPathComponent
-        let bad = CharacterSet.controlCharacters.union(CharacterSet(charactersIn: ":/\\"))
-        let clean = leaf.components(separatedBy: bad).joined(separator:"_").trimmingCharacters(in:.whitespacesAndNewlines)
-        return clean.isEmpty || clean == "." || clean == ".." ? "download" : String(clean.prefix(180))
-    }
-    static func available(_ name: String, in directory: URL) -> URL {
-        let clean = safe(name)
-        let ext = (clean as NSString).pathExtension
-        let base = (clean as NSString).deletingPathExtension
-        var candidate = directory.appendingPathComponent(clean)
-        var number = 2
-        while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = directory.appendingPathComponent("\(base) (\(number))" + (ext.isEmpty ? "" : ".\(ext)")); number += 1
-        }
-        return candidate
-    }
-}
-struct StateStore {
+final class StateStore {
+    private var validated=false
+    private var blockedReason:String?
+    var canWrite:Bool {validated && blockedReason==nil}
     let root: URL
     init(root: URL = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("StreamDrop")) { self.root = root }
     func load() throws -> AppState {try loadWithRecovery().state}
+    private func readState() throws -> AppState {
+        let file=root.appendingPathComponent("state.json")
+        let state=FileManager.default.fileExists(atPath:file.path) ? try JSONDecoder().decode(AppState.self,from:Data(contentsOf:file)) : AppState()
+        guard state.version==1 else{throw InputError.invalid("不支持的数据版本；原状态文件保留在 \(file.path)")}
+        return state
+    }
+    func requireWritable() throws {
+        if let reason=blockedReason{throw InputError.invalid("状态存储不可写，原始记录已保留："+reason)}
+        guard !validated else{return}
+        do {_=try readState();validated=true}
+        catch {blockedReason=error.localizedDescription;throw error}
+    }
     func loadWithRecovery() throws -> (state:AppState,warnings:[String]) {
-        let file = root.appendingPathComponent("state.json")
-        var state = FileManager.default.fileExists(atPath:file.path) ? try JSONDecoder().decode(AppState.self,from:Data(contentsOf:file)) : AppState()
-        guard state.version == 1 else { throw InputError.invalid("不支持的数据版本；原状态文件保留在 \(file.path)") }
-        let warnings=try recoverCompletions(state:&state)
-        for index in state.jobs.indices where state.jobs[index].status.active {
-            state.jobs[index].status = .paused
-            state.jobs[index].detail = "上次运行已中断；点击继续下载。"
-        }
-        return (state,warnings)
+        do {
+            var state=try readState()
+            validated=true;blockedReason=nil
+            let warnings=try recoverCompletions(state:&state)
+            for index in state.jobs.indices where state.jobs[index].status.active {
+                state.jobs[index].status = .paused
+                state.jobs[index].detail="上次运行已中断；点击继续下载。"
+            }
+            return (state,warnings)
+        }catch{validated=false;blockedReason=error.localizedDescription;throw error}
     }
     func save(_ state: AppState) throws {
+        try requireWritable()
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted,.sortedKeys]
         try encoder.encode(state).write(to:root.appendingPathComponent("state.json"),options:.atomic)

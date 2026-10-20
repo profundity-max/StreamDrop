@@ -11,6 +11,7 @@ const data=JSON.parse(await fs.readFile(path.join(root,'docs/releases/history.js
 const version=(await fs.readFile(path.join(root,'VERSION'),'utf8')).trim();
 const build=Number((await fs.readFile(path.join(root,'BUILD_NUMBER'),'utf8')).trim());
 const latest=data.releases.at(-1);
+if(!Array.isArray(latest.notes) || !latest.notes.length || latest.notes.some(note=>typeof note!=='string' || !note.trim()))throw Error('Missing release notes');
 if(latest.version!==version || data.currentVersion!==version || latest.build!==build || latest.ref!==`v${version}`)throw Error('Release metadata mismatch');
 const book=Workbook.create();
 const history=book.worksheets.add('版本记录');
@@ -32,6 +33,7 @@ function gitLink(ref){return ref ? `${data.repository}/${ref.startsWith('v')?'re
 const historyEnd=5+data.releases.length;
 const detailEnd=5+data.changes.length;
 const noteRow=detailEnd+2;
+const notesEnd=noteRow+latest.notes.length-1;
 base(history,'StreamDrop 版本记录','J',historyEnd);
 history.getRange('A5:J5').values=[['版本','日期','变更级别','发布状态','构建号','Git 锚点','版本判断理由','主要变化','通过测试数','来源与限制']];
 const rows=data.releases.map(r=>[r.version,new Date(`${r.date}T12:00:00Z`),r.kind,r.status,r.build,r.ref ?? '未独立提交',r.reason,r.summary,r.tests,`${gitLink(r.ref)}\n${r.limitations}`]);
@@ -43,19 +45,17 @@ history.getRange(`E6:E${historyEnd}`).setNumberFormat('0');history.getRange(`I6:
 const widths={A:105,B:110,C:100,D:145,E:75,F:195,G:245,H:300,I:95,J:365};
 for(const [column,width] of Object.entries(widths))history.getRange(`${column}5:${column}${historyEnd}`).format.columnWidthPx=width;
 history.getRange(`A${historyEnd}:J${historyEnd}`).format.fill='#EDF2FA';
-base(detail,`StreamDrop ${version} 发布明细`,'E',noteRow+2);
+base(detail,`StreamDrop ${version} 发布明细`,'E',notesEnd);
 detail.getRange('A5:E5').values=[['范围','变化说明','已执行验证','Git 锚点','来源']];
 detail.getRange(`A6:E${detailEnd}`).values=data.changes.map(c=>[c.area,c.summary,c.verification,c.ref,gitLink(c.ref)]);
 detail.getRange(`A6:E${detailEnd}`).format.wrapText=true;
 detail.getRange(`A6:E${detailEnd}`).format.rowHeight=68;
-for(const [column,width] of Object.entries({A:120,B:350,C:385,D:215,E:385}))detail.getRange(`${column}5:${column}${noteRow+2}`).format.columnWidthPx=width;
+for(const [column,width] of Object.entries({A:120,B:350,C:385,D:215,E:385}))detail.getRange(`${column}5:${column}${notesEnd}`).format.columnWidthPx=width;
 detail.getRange(`A${noteRow}`).values=[['兼容与限制']];detail.getRange(`A${noteRow}`).format.font={bold:true,color:'#253B64'};
-detail.getRange(`B${noteRow}`).values=[['旧数据可读；不回填旧记录的播放观察。']];
-detail.getRange(`B${noteRow+1}`).values=[['跨卷中断无法确认身份时，保留现场并报告未知。']];
-detail.getRange(`B${noteRow+2}`).values=[['标签锚定最终提交；Excel 不写自身所属提交的 SHA。']];
-detail.getRange(`B${noteRow}:C${noteRow+2}`).format.wrapText=true;detail.getRange(`A${noteRow}:E${noteRow+2}`).format.rowHeight=42;
+detail.getRange(`B${noteRow}:B${notesEnd}`).values=latest.notes.map(note=>[note]);
+detail.getRange(`B${noteRow}:C${notesEnd}`).format.wrapText=true;detail.getRange(`A${noteRow}:E${notesEnd}`).format.rowHeight=42;
 book.recalculate();
-for(const [name,range] of [['版本记录',`A5:J${historyEnd}`],['发布明细',`A5:E${noteRow+2}`]]){
+for(const [name,range] of [['版本记录',`A5:J${historyEnd}`],['发布明细',`A5:E${notesEnd}`]]){
     console.log((await book.inspect({kind:'table',range:`${name}!${range}`,include:'values',tableMaxRows:10,tableMaxCols:10,maxChars:1800})).ndjson);
     const preview=await book.render({sheetName:name,range:`A1:${range.split(':')[1]}`,scale:1,format:'png'});
     await fs.writeFile(path.join(previewDir,`${name}.png`),new Uint8Array(await preview.arrayBuffer()));

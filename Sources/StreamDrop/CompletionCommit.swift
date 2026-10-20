@@ -8,6 +8,7 @@ private struct CompletionReceipt:Codable {
     let source:URL
     let target:URL
     var identity:FileIdentity
+    var stateCommitted:Bool? = nil
 }
 private struct FileIdentity:Codable,Equatable {
     let device:Int32
@@ -26,6 +27,8 @@ private struct CleanupFailure:LocalizedError {
     let reason:String
     var errorDescription:String?{"下载已完成，部分清理待重试："+reason}
 }
+enum ExecutionReadiness {case start,recovered(warnings:[String])}
+
 extension StateStore {
     private var receipts:URL {root.appendingPathComponent("Completions",isDirectory:true)}
     private func receiptPath(_ id:UUID)->URL{receipts.appendingPathComponent(id.uuidString+".json")}
@@ -33,23 +36,35 @@ extension StateStore {
         try FileManager.default.createDirectory(at:receipts,withIntermediateDirectories:true)
         try JSONEncoder().encode(receipt).write(to:receiptPath(receipt.job.id),options:.atomic)
     }
-    func complete(job:DownloadJob,file:URL,name:String,playback:PlaybackObservation?=nil,state:inout AppState)throws {
+    func prepareExecution(for id:UUID,state:inout AppState)throws -> ExecutionReadiness {
+        try requireWritable()
+        guard FileManager.default.fileExists(atPath:receiptPath(id).path) else{return .start}
+        let warnings=try recoverCompletions(state:&state,only:id)
+        guard state.jobs.first(where:{$0.id==id})?.status == .completed else{
+            throw InputError.invalid("完成恢复后的任务状态无法确认；没有启动新下载。")
+        }
+        return .recovered(warnings:warnings)
+    }
+    func complete(job:DownloadJob,artifact:DownloadArtifact,state:inout AppState)throws {
+        try requireWritable()
+        let file=artifact.file,name=artifact.name,playback=artifact.playback
         // Recover any earlier attempt before selecting a new name or moving bytes.
-        if FileManager.default.fileExists(atPath:receiptPath(job.id).path){_=try recoverCompletions(state:&state);return}
+        if FileManager.default.fileExists(atPath:receiptPath(job.id).path){_=try recoverCompletions(state:&state,only:job.id);return}
         guard file.standardizedFileURL.path.hasPrefix(workDirectory(job.id).standardizedFileURL.path+"/") else{
             throw InputError.invalid("下载产物不属于此任务的工作目录。")
         }
         let folder=URL(fileURLWithPath:job.folder,isDirectory:true)
         try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
         var observedJob=job;observedJob.playback=playback
-        let receipt=CompletionReceipt(job:observedJob,source:file,target:FileNames.available(name,in:folder),identity:try .read(file))
+        let receipt=CompletionReceipt(job:observedJob,source:file,target:try FileNames.available(name,in:folder),identity:try .read(file))
         try write(receipt)
         try settle(receipt,state:&state)
     }
-    func recoverCompletions(state:inout AppState)throws -> [String] {
+    func recoverCompletions(state:inout AppState,only id:UUID?=nil)throws -> [String] {
+        try requireWritable()
         var warnings:[String]=[]
         guard FileManager.default.fileExists(atPath:receipts.path) else{return []}
-        let files=try FileManager.default.contentsOfDirectory(at:receipts,includingPropertiesForKeys:nil).filter{$0.pathExtension=="json"}.sorted{$0.path<$1.path}
+        let files=try FileManager.default.contentsOfDirectory(at:receipts,includingPropertiesForKeys:nil).filter{$0.pathExtension=="json" && (id==nil || $0.lastPathComponent==id!.uuidString+".json")}.sorted{$0.path<$1.path}
         for file in files {
             let receipt=try JSONDecoder().decode(CompletionReceipt.self,from:Data(contentsOf:file))
             guard file.lastPathComponent==receipt.job.id.uuidString+".json",
@@ -62,7 +77,7 @@ extension StateStore {
         return warnings
     }
     private func settle(_ pending:CompletionReceipt,state:inout AppState)throws {
-        if state.completionCleanup?.contains(pending.job.id)==true {try cleanup(pending,state:&state);return}
+        if pending.stateCommitted==true || state.completionCleanup?.contains(pending.job.id)==true {try cleanup(pending,state:&state);return}
         var receipt=pending
         if FileManager.default.fileExists(atPath:receipt.source.path) {
             guard try FileIdentity.read(receipt.source)==receipt.identity else{throw InputError.invalid("原始产物身份已改变，未移动文件。")}
@@ -95,11 +110,17 @@ extension StateStore {
     private func cleanup(_ receipt:CompletionReceipt,state:inout AppState)throws {
         // Cleanup failures retain their receipt so the next recovery can retry.
         do {
+            // Persist the cleanup-only phase before removing the state marker.
+            // A crash after that save must never resurrect deleted history.
+            var committed=receipt;committed.stateCommitted=true
+            try write(committed)
             let work=workDirectory(receipt.job.id)
             if FileManager.default.fileExists(atPath:work.path){try FileManager.default.removeItem(at:work)}
+            var cleaned=state
+            cleaned.completionCleanup?.removeAll{$0==receipt.job.id}
+            try save(cleaned)
+            state=cleaned
             try FileManager.default.removeItem(at:receiptPath(receipt.job.id))
-            state.completionCleanup?.removeAll{$0==receipt.job.id}
-            try save(state)
         }catch{throw CleanupFailure(reason:error.localizedDescription)}
     }
 }

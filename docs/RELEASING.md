@@ -23,12 +23,16 @@ an available @oai/artifact-tool installation may be used without that variable.
 ```sh
 node scripts/release-workbook.mjs
 python3 scripts/check-release.py
+python3 scripts/test-release-records.py
 python3 scripts/test.py
 ./scripts/build.sh
 ```
 
 Inspect the workbook and its two rendered previews under .test-output/release-record/.
 The consistency check reads Excel cells directly and compares every source row.
+The latest release's `notes` array owns compatibility and limitation text; the
+builder renders it and the independent checker verifies it. Checks remain active
+under `python3 -O`; the regression script exercises both interpreter modes.
 For a Codex artifact creation, run the spreadsheet skill's artifact-operation marker
 before the first authoring run. Do not install or upgrade unrelated runtime software.
 

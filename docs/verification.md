@@ -1,5 +1,24 @@
 # 验证记录
 
+## 1.1.2 架构修正
+
+2026-10-20，补丁版本，build 7。完整 31 项 XCTest / 0 failures：26.57 秒，
+含构建 31.18 秒。包含真实本地 HTTP/HLS、yt-dlp、FFmpeg 转换与原生画面解码。
+新增损坏/未来状态统一拒绝写入、无服务器时先恢复完成提交、长标题实际
+落盘与同名不覆盖。清理失败重试测试还验证移除队列、历史和状态标记后，
+已确认提交的 receipt 仅清理而不恢复已删除记录。
+
+3 项 Python 发布回归全部通过：当前记录成功、版本漂移失败、Excel
+说明漂移失败；每项均运行普通和 -O 模式。旧校验在 -O 下曾错误放行。
+独立只读复审未发现阻塞。未做跨卷/断电、最后清理保存/删除失败注入，
+未重下公共站点，未测 Intel/macOS 13 实机或性能基准。
+
+Universal arm64/x86_64 release 构建成功，App strict codesign 与 DMG CRC
+校验通过。Excel 两页已渲染目检，7 条历史、3 条明细及 4 条兼容说明
+与源记录一致。安装前 7 个任务均完成；备份旧 App 后更新
+`/Applications/StreamDrop.app`，状态文件字节保持不变，重启后仍显示
+7 个已完成，设置 → 关于实际显示 StreamDrop 1.1.2。
+
 日期：2026-10-18。环境：Apple Silicon macOS，Xcode 自带 Swift 6.3.3，Swift 5 language mode，deployment target macOS 13。
 
 ## 已执行

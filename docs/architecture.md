@@ -1,5 +1,33 @@
 # 下载执行、完成提交与播放观察
 
+## 1.1.2 存储、文件名与发布记录收敛
+
+2026-10-20，按存储 → 最终文件名 → 发布记录顺序优化。
+
+StateStore 以引用会话拥有状态读取验证及写入许可，save、complete、
+recoverCompletions 与 prepareExecution 共用该许可；Queue 不再持有另一套
+storageBlocked。启动 Transfer Run 前先恢复该任务的 Completion Commit，
+避免重新下载覆盖待恢复的工作产物。清理先持久化可选 stateCommitted
+阶段，再清理工作目录并保存移除标记的状态，最后删除 receipt；旧凭据
+缺该字段仍按原有 completionCleanup 标记恢复。只有状态确认后才进入清理。
+
+FileNames module 拥有最终文件名 interface：按目录的 NAME_MAX 与保守的
+255 UTF-8 字节预算，先保留扩展名和冲突编号，再按完整 Character 缩短
+标题。该预算不声称是 APFS 的准确 Unicode 计数规则。移除旧 safe 中对
+整个文件名的 180 字符截断；下载引擎内部临时路径继续由各 Transfer 拥有。
+
+发布事实由 history.json 拥有，latest.notes 提供兼容与限制说明。Excel
+builder 只负责布局，独立 Python checker 直接读取 OOXML 验证内容，并以
+显式异常拒绝漂移；不再依赖可被优化模式跳过的 assert。
+
+验证：31 项 XCTest 通过，26.57 秒，含构建 31.18 秒；3 项 Python 测试
+通过，各运行普通及 -O 两种解释器模式。旧文件名代码的实际落盘测试
+出现扩展名丢失与复合 emoji 名称过长，修正后通过。独立只读复审无阻塞。
+未注入清理末次保存或最终 receipt 删除失败，未测断电或跨卷中断。
+未做等价性能基准，token、CPU 时间和进程家族峰值内存均未测量。
+
+## 1.0.3 原始重构记录
+
 StreamDrop 1.0.3，2026-10-18。三项重构按顺序完成。
 
 ## 下载执行

@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.2 — 2026-10-20
+
+**Patch release.** Correct existing storage, naming and release-record behavior;
+existing user data remains readable and requires no migration.
+
+- Let the storage session enforce write permission across saves, completion and
+  recovery; preserve unreadable or future-version state without starting downloads.
+- Recover a pending completion before restarting its transfer. Retain the receipt
+  through final cleanup saves, without restoring user-deleted history.
+- Reserve filename space for extensions and collision numbers before shortening
+  long titles; use a conservative UTF-8 budget for the destination directory.
+- Keep release checks active under optimized Python and derive workbook notes from
+  the release record, with independent cell verification.
+
+Validation: 31 XCTest cases, including real local HTTP/HLS/yt-dlp/FFmpeg flows,
+storage recovery and actual long-name writes; 3 Python release-gate tests in normal
+and optimized interpreters. No new public-site, cross-volume interruption, power-loss,
+Intel or macOS 13 hardware validation. App remains ad-hoc signed, not notarized.
+
 ## 1.1.1 — 2026-10-19
 
 **Patch release.** Correct webpage download filenames without changing existing history or files.
