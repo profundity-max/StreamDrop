@@ -1,64 +1,94 @@
 # StreamDrop
 
-独立实现的原生 macOS 下载 App。参考本地 Downie 4.13.3 的可观察布局与交互，使用原创 Swift 代码、原创应用图标及 Apple SF Symbols。与 Downie 无关联，未使用其代码、框架、FFmpeg 副本或图像资源。
+**把链接变成本地文件。** StreamDrop 是一款原生 macOS 下载工具，用简洁的队列管理文件、网页视频和音频下载。
 
-## 运行与安装
+粘贴或拖入链接，选择格式和画质，即可开始下载。暂停、继续、重试、查看历史和在 Finder 中定位文件，都可以在 App 内完成。
 
-打开 `output/StreamDrop.app`；或打开 `output/StreamDrop.dmg`，将 StreamDrop 拖至 Applications。macOS 13 或更新版本。应用本身无需 Node、Python 或浏览器运行时。
+[下载安装包](https://github.com/profundity-max/StreamDrop/releases/latest) · [查看版本记录](https://github.com/profundity-max/StreamDrop/releases) · [浏览当前代码](https://github.com/profundity-max/StreamDrop/tree/codex/download-architecture)
 
-应用使用本机 ad-hoc 签名，未使用 Developer ID 公证；跨机器分发时 Gatekeeper 可能阻止打开。没有关闭系统安全保护的安装步骤。
+## 主要功能
 
-## 主要操作
+- **文件与网页视频下载**：文件直链使用系统下载能力；网页视频、HLS 和 DASH 由本机 yt-dlp 解析。
+- **音频提取与合并**：选择保存视频或提取 M4A 音频，通过 FFmpeg 合并分离的音视频。
+- **下载队列**：多链接添加、并发控制、暂停、继续、取消和重试。断点续传取决于来源服务器。
+- **保留视频标题**：保留中文、空格和原有方括号，不额外追加视频 ID。同名文件自动编号，长标题保留扩展名后缩短。
+- **系统播放兼容性**：优先选择兼容格式，必要时转换为 H.264/AAC，并检查系统是否能解码实际画面。
+- **本地历史记录**：搜索、重新下载和在 Finder 中显示。清空记录不会删除下载文件。
+- **工具检查与诊断**：实际检查 yt-dlp、FFmpeg 的版本和运行状态，复制带有 App、系统及工具信息的诊断。
+- **网页媒体查找**：通过内置临时 WebKit 浏览器查找媒体元素，或把当前网页交给下载工具解析。
 
-- ⌘L 打开链接；空格或换行分隔多条 HTTP(S) URL；可从 UTF-8 文本导入。
-- ⌘⇧V 从粘贴板添加，也可拖入链接。
-- 文件直链用系统 URLSession 下载，无外部依赖；自动模式按文件后缀识别，无法识别的直链可手动选「文件直链」。
-- 网页视频/HLS/DASH 用本机 **yt-dlp**。音频 M4A、视频音轨合并需要本机 **FFmpeg**。设置 → 外部工具显示检测结果，可以手动选择可执行文件。不会自动安装依赖。
-- 设置 → 外部工具 →「检查工具版本与运行状态」实际执行版本命令，报告缺失、运行失败、不可识别输出或超时。错误详情中的「复制诊断」附上 App、macOS 及当前工具版本和路径；当前工具信息不代表下载失败发生时的版本。
-- 默认「优先 MP4 与系统播放兼容性」：同等分辨率优先 H.264/AAC。网页视频下载后尝试原生画面解码，已确定系统无法解码时用 FFmpeg 转为 H.264/AAC，并再次验证画面后完成。转换会增加时间和 CPU 使用；关闭该选项则保留来源编码。无法建立轨道信息的文件不视为已验证兼容。文件直链保持原始字节。
-- 添加时选择视频/音频和最高画质；网页支持范围以当前 yt-dlp 为准。受保护/加密媒体及需要登录的来源不保证支持。
-- 卡片右侧暂停、继续、取消和重试；HTTP 续传取决于服务器支持，不能续传时重新下载。网页任务保留 yt-dlp 的部分文件以供重试。
-- 网页视频文件名保留标题中的中文、空格和原有方括号，不额外追加视频 ID；同名文件自动编号，已有文件保持原名。长标题会在保留扩展名及编号后缩短；非法字符替换为下划线。
-- 完成记录保留画面观察：已解码画面、转换后已解码画面、未知、未检查。这里只验证实际画面采样，不保证整片或音轨质量；旧记录不推断验证结果。
-- 完成后打开文件或在 Finder 中显示。清空列表或历史不删除下载文件。
-- 底部时钟 / ⌘Y 打开历史记录；⌘, 设置保存位置、并发数和画质。
-- 指南针打开临时 WebKit 浏览器：加载公开网页 → 查找媒体元素 → 选择候选 → 下载；可直接将当前网页交给 yt-dlp。跨域 iframe、blob URL 可能无法发现，不导入其他浏览器的 Cookie。
+## 安装
 
-## 数据
+适用于 **macOS 13 及更新版本**。安装包同时包含 Apple Silicon 和 Intel 架构。
 
-`~/Library/Application Support/StreamDrop/state.json` 保存队列、历史及设置，使用原子写入。`Transfers/<UUID>` 保存部分下载和恢复数据。`Completions/<UUID>.json` 保留尚未结束的完成提交；文件归属和状态保存确认后才清理，清理失败可在下次启动重试。退出时尝试暂停，重启后中断任务以暂停状态恢复，需手动继续。同名文件添加编号，绝不覆盖。状态损坏时保留原文件，界面报告并禁止本次会话继续覆盖该状态。
+1. 在 [Releases](https://github.com/profundity-max/StreamDrop/releases/latest) 下载最新 DMG。
+2. 打开映像，将 **StreamDrop** 拖入 **Applications（应用程序）**。
+3. 从应用程序目录打开 App。
 
-正常退出等待下载、转换和工具检查的进程及输出收尾，期间不启动新下载；不再到固定时间就退出。系统强制结束进程不提供同等保证。
+也可以下载 ZIP，解压后将 App 移入应用程序目录。当前安装包使用 ad-hoc 签名，尚未进行 Developer ID 公证，macOS 可能限制打开。
 
-不读取 Downie 用户数据，不记录环境变量，不上传分析记录。下载本身会连接用户填写的网站和相关 CDN。原始 URL（包括 query）会保存在本地记录。
+### 外部工具
 
-## 构建与验证
+| 使用方式 | 所需工具 |
+| --- | --- |
+| 文件直链 | 无需额外工具 |
+| 网页视频、HLS / DASH | yt-dlp |
+| M4A 提取、音视频合并、兼容性转换 | FFmpeg；网页解析仍需 yt-dlp |
+
+在 **设置 → 外部工具** 中选择本机已有的可执行文件，再点击「检查工具版本与运行状态」。留空时检测 `/opt/homebrew/bin`、`/usr/local/bin` 和 `/usr/bin`。App 不会自动安装或升级工具，也无需配置 Node.js 或 Python 项目环境。
+
+## 快速开始
+
+1. 按 **⌘L** 添加链接，或将链接拖入主窗口。多条链接可用空格或换行分隔。
+2. 选择自动识别、网页视频或文件直链，并选择视频 / 音频和画质。
+3. 下载完成后，从卡片打开文件或在 Finder 中显示。
+
+| 快捷键 | 操作 |
+| --- | --- |
+| ⌘L | 打开链接 |
+| ⌘⇧V | 从粘贴板添加 |
+| ⌘Y | 打开历史记录 |
+| ⌘, | 打开设置 |
+
+默认开启「优先 MP4 与系统播放兼容性」。转换会增加处理时间；关闭后保留来源编码。文件直链始终保留原始字节。画面检查代表实际采样的解码结果，不保证整片视频或音轨质量。
+
+## 数据与恢复
+
+队列、历史、设置和原始链接保存在本机的 `~/Library/Application Support/StreamDrop/`。其中 `state.json` 保存记录，`Transfers/` 保存部分下载，`Completions/` 保存待恢复或清理的完成提交。
+
+正常退出会暂停任务并等待下载、转换和工具检查收尾。重启后，未完成任务以暂停状态保留，需手动继续。完成提交中断时，App 会先确认文件归属再恢复记录；状态损坏或版本不兼容时保留原始数据并报告错误。系统强制结束或断电不提供同等恢复保证。
+
+App 不上传下载历史或诊断；下载会连接用户添加的网站及其媒体 CDN。链接中的参数也会保存在本地，分享诊断前可先检查内容。内置浏览器使用临时网站数据，不导入其他浏览器的 Cookie。
+
+## 当前范围
+
+网页支持范围取决于 yt-dlp 版本和来源网站。需要登录、受保护或加密的媒体不保证支持；内置浏览器可能无法发现跨域 iframe 或 blob 媒体。目前没有浏览器扩展、字幕批量管理、代理设置界面或自动更新功能。
+
+## 开发与验证
+
+安装包与源码通过 Release 标签对应。开发代码位于 `codex/download-architecture` 分支；默认分支的介绍会同步更新，构建时请使用开发分支或对应发布标签。
 
 ```sh
+git clone --branch codex/download-architecture https://github.com/profundity-max/StreamDrop.git
+cd StreamDrop
 ./scripts/build.sh
-python3 scripts/test.py
-python3 scripts/test.py --require-tools
 ```
 
-测试脚本使用已安装的 FFmpeg 合成颜色/音调视频，启动私有 loopback 服务（18764 / 18765），运行 `swift test` 并清理服务及临时媒体；不安装任何软件。测试日志保存在 `.test-output/tests.log`。运行完整集成测试前需要本机已有 FFmpeg；缺少 yt-dlp 时网页测试会跳过。
+使用 Xcode 自带的 Swift 工具链构建。界面采用 SwiftUI / AppKit，直链使用 URLSession，网页浏览使用 WebKit，播放检查使用 AVFoundation。产物位于 `output/`，包含 App、DMG 和 ZIP。
 
-测试不需要 Downie DMG。构建仅使用 Xcode/Swift SDK 与系统工具。测试工具检测到缺少 yt-dlp 时跳过网页解析测试。更多证据与差异见 `docs/analysis.md`、验证结果见 `docs/verification.md`。
+```sh
+python3 scripts/test.py --require-tools
+python3 scripts/test-release-records.py
+python3 scripts/test-test-gate.py
+python3 scripts/check-release.py --built
+```
 
-CI 使用 `--require-tools`：必须有 yt-dlp/FFmpeg，禁止筛选用例，结构化 XCTest 报告中任何失败、跳过、空报告或记录缺失均不通过。普通模式明确列出跳过项。GitHub Actions 在 macOS runner 上检查发布记录、完整回归、universal 构建、签名和 DMG，并保留测试日志。
+完整测试需要本机已有 yt-dlp 和 FFmpeg，使用本地合成媒体验证下载、转换、暂停恢复、进程收尾和状态保存。严格模式拒绝缺少工具、跳过、失败或不完整的报告。GitHub Actions 还会验证 universal 构建、签名和 DMG。
 
-## 实现范围
+## 版本记录
 
-包含可用的本地下载主流程、队列进度/调度、暂停/继续/取消/重试、历史搜索、独立存储、目录选择、网页解析和基础引导提取。未重建原版浏览器扩展、AppleScript/Shortcuts、Permute、字幕库、代理 UI、自定义集成、自动更新、购买/授权和专有站点解析器。部分文件恢复能力取决于来源服务；不声称与原版的下载引擎等价。
+每次发布记录版本判断、变更说明、验证范围和 Git 标签，并提供累计 Excel 台账。安装包、Excel、发布元数据和 SHA-256 校验文件均可在 [Releases](https://github.com/profundity-max/StreamDrop/releases) 获取。
 
-模块责任与本次验证范围见 `docs/architecture.md`；领域用语见 `CONTEXT.md`。
-
-## 版本与发布记录
-
-当前版本以 `VERSION` 为准，构建号以 `BUILD_NUMBER` 为准。每次更新判断大版本、小版本或补丁，并同步变更说明、累计 Excel 和 Git 标签。
-
-- 变更说明：`CHANGELOG.md`
-- 累计 Excel：`docs/releases/StreamDrop-version-history.xlsx`
-- 发布数据：`docs/releases/history.json`
-- 发布流程与一致性检查：`docs/RELEASING.md`
-
-正式安装包与同版本 Excel 在 [GitHub Releases](https://github.com/profundity-max/StreamDrop/releases) 下载。
+- [变更说明](https://github.com/profundity-max/StreamDrop/blob/codex/download-architecture/CHANGELOG.md)
+- [下载版本台账](https://github.com/profundity-max/StreamDrop/releases/latest/download/StreamDrop-version-history.xlsx)
+- [发布流程](https://github.com/profundity-max/StreamDrop/blob/codex/download-architecture/docs/RELEASING.md)

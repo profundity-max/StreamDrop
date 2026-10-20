@@ -78,7 +78,7 @@ struct MainView:View {
              };return true
          }
          .alert("StreamDrop",isPresented:Binding(get:{queue.error != nil},set:{if !$0{queue.error=nil}})){Button("好"){queue.error=nil}}message:{Text(queue.error ?? "")}
-         .alert("使用说明",isPresented:$showHelp){Button("好",role:.cancel){}}message:{Text("粘贴、拖入或用 ⌘L 添加 HTTP(S) 链接。直链无需额外工具；网页视频使用设置中检测到的 yt-dlp。\n\n下载卡片支持暂停、继续、取消和重试。已完成的文件可在 Finder 中显示。历史记录及设置仅保存在本机。\n\nStreamDrop 是独立实现，与 Downie 无关联。")}
+         .alert("使用说明",isPresented:$showHelp){Button("好",role:.cancel){}}message:{Text("粘贴、拖入或用 ⌘L 添加 HTTP(S) 链接。直链无需额外工具；网页视频使用设置中检测到的 yt-dlp。\n\n下载卡片支持暂停、继续、取消和重试。已完成的文件可在 Finder 中显示。历史记录及设置仅保存在本机。")}
     }
     private func paste(){draft=LinkDraft(text:NSPasteboard.general.string(forType:.string) ?? "")}
 }

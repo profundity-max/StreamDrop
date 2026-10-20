@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.2 — 2026-10-20
+
+**Patch release.** Update project documentation and App copy without changing
+download behavior, settings or stored data.
+
+- Rewrite the README around StreamDrop's purpose, capabilities, installation,
+  external tools, everyday use, privacy and development workflow.
+- Remove unnecessary third-party affiliation statements from About, Help, Privacy,
+  the bundled README and bundle copyright text. Describe StreamDrop directly.
+- Synchronize the README to the repository's default branch for the GitHub homepage;
+  current implementation remains on the existing development branch and release tags.
+
+Validation: release-record gates, universal App build, signature/package checks and
+installed-App copy review. No new download-engine behavior or site coverage.
+
 ## 1.2.1 — 2026-10-20
 
 **Patch release.** Correct CI fixture startup and diagnostics without changing App

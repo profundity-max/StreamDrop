@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/profundity-max/StreamDrop",
-  "currentVersion": "1.2.1",
+  "currentVersion": "1.2.2",
   "releases": [
     {
       "version": "1.0.0",
@@ -133,14 +133,37 @@
         "CI 环境及测试启动修正；远端完整结果见 GitHub Release 链接。",
         "不移动已发布标签；未新增公共站点、跨卷或 macOS 13 实机验证。"
       ]
+    },
+    {
+      "version": "1.2.2",
+      "date": "2026-10-20",
+      "kind": "补丁版本",
+      "status": "正式标签版本",
+      "build": 10,
+      "ref": "v1.2.2",
+      "reason": "仅修改项目介绍与 App 文案，下载行为和旧数据保持兼容。",
+      "summary": "重写 README，移除 App 内多余的第三方关系说明，同步 GitHub 首页介绍。",
+      "tests": 40,
+      "limitations": "40 项下载回归为前版通过基线，本版文案变更以构建及界面核对验证；未新增站点覆盖。",
+      "notes": [
+        "文档与界面文案更新，不改变下载流程、偏好和本地历史。",
+        "测试数沿用 1.2.1 的 40 项基线；本版执行发布门禁、构建和界面核对。",
+        "默认分支同步 README；当前实现仍位于开发分支与发布标签。"
+      ]
     }
   ],
   "changes": [
     {
-      "area": "CI 启动与诊断",
-      "summary": "明确系统 Python，允许有界启动时间，记录就绪耗时并检查服务退出原因。",
-      "verification": "真实退出码 7 的服务被立即拒绝；完整本地下载回归和发布门禁继续验证。",
-      "ref": "v1.2.1"
+      "area": "项目介绍",
+      "summary": "从项目用途、功能、安装、工具依赖、快捷键和数据方式介绍 StreamDrop。",
+      "verification": "核对功能与源码一致，GitHub 默认分支 README 与发布版正文保持一致。",
+      "ref": "v1.2.2"
+    },
+    {
+      "area": "App 文案",
+      "summary": "关于、使用说明、隐私和打包信息直接介绍产品，不再强调第三方关系。",
+      "verification": "源码及打包文档搜索无相关措辞，构建与安装后界面核对。",
+      "ref": "v1.2.2"
     }
   ]
 }
