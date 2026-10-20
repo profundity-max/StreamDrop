@@ -4,6 +4,8 @@ import AppKit
 struct PreferencesView:View {
     @ObservedObject var queue:DownloadQueue
     @State private var section="通用"
+    @State private var toolChecks:[MediaTool:ToolObservation]=[:]
+    @State private var checking=false
     private let sections:[(String,String,Color)]=[("通用","gearshape.fill",.blue),("下载目录","externaldrive.fill",.orange),("后期处理","slider.horizontal.3",.red),("外部工具","wrench.and.screwdriver.fill",.purple),("隐私与数据","hand.raised.fill",.teal),("关于","info.circle.fill",.gray)]
     var body:some View {
         HStack(spacing:0) {
@@ -53,6 +55,24 @@ struct PreferencesView:View {
         toolField("yt-dlp",path:$queue.preferences.ytDLP)
         Text("视频合并与音频转换").font(.headline)
         toolField("ffmpeg",path:$queue.preferences.ffmpeg)
+        Text("找到路径不代表工具运行正常，请点击下方按钮检查。检查只读取版本，不安装或更新工具。").font(.caption).foregroundStyle(.secondary)
+        Button(checking ? "正在检查…" : "检查工具版本与运行状态"){
+            checking=true
+            let yt=queue.preferences.ytDLP,ff=queue.preferences.ffmpeg
+            Task {
+                async let y=ToolHealth.shared.check(.ytDLP,configured:yt)
+                async let f=ToolHealth.shared.check(.ffmpeg,configured:ff)
+                let results=await [y,f]
+                // Discard results if the user changed either selected executable.
+                if yt==queue.preferences.ytDLP,ff==queue.preferences.ffmpeg{toolChecks=Dictionary(uniqueKeysWithValues:results.map{($0.tool,$0)})}
+                checking=false
+            }
+        }.disabled(checking)
+        ForEach(MediaTool.allCases,id:\.self){tool in
+            if let result=toolChecks[tool],result.path==ToolPaths.find(tool == .ytDLP ? queue.preferences.ytDLP : queue.preferences.ffmpeg,name:tool.rawValue) {
+                Text(result.diagnostic).font(.caption).foregroundStyle(result.usable ? Color.green : Color.orange).textSelection(.enabled)
+            }
+        }
         Text("留空时检测 /opt/homebrew/bin、/usr/local/bin 和 /usr/bin。本应用只使用你已安装的工具，不会自动安装或更新软件。工具输出错误会显示在下载卡片中。 ").font(.caption).foregroundStyle(.secondary)
     }}
     func toolField(_ name:String,path:Binding<String>)->some View {VStack(alignment:.leading,spacing:8){HStack{TextField("自动检测 \(name)",text:path).textFieldStyle(.roundedBorder);Button("选择…"){let panel=NSOpenPanel();panel.canChooseDirectories=false;panel.canChooseFiles=true;panel.showsHiddenFiles=true;if panel.runModal() == .OK,let url=panel.url{path.wrappedValue=url.path}}};if let resolved=ToolPaths.find(path.wrappedValue,name:name){Label(resolved,systemImage:"checkmark.circle.fill").foregroundStyle(.green).font(.caption).textSelection(.enabled)}else{Label("未找到 \(name)",systemImage:"exclamationmark.circle").foregroundStyle(.orange).font(.caption)}}}

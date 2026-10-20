@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.0 — 2026-10-20
+
+**Minor release.** Add compatible tool-health and diagnostic capabilities, and
+strengthen graceful shutdown. Existing preferences and history need no migration.
+
+- Wait for download, converter and version-check resources to settle before normal
+  App termination; prevent new transfers during shutdown instead of quitting after
+  an eight-second deadline.
+- Run bounded yt-dlp/FFmpeg version checks from settings. Distinguish missing tools,
+  execution errors, unrecognized output, cancellation and timeout.
+- Include App/macOS and currently observed tool versions/paths in copied error
+  diagnostics, keeping download errors and original URLs intact.
+- Add GitHub Actions verification with required media tools, release-record gates,
+  universal build and package checks. Structured XCTest events make skipped or
+  missing coverage fail strict mode.
+- Cover final completion-state save and receipt-delete failures without restoring
+  user-deleted history.
+
+Validation and execution scope are recorded in docs/verification.md. Tests use
+owned local fixtures; normal shutdown is distinct from force quit or power loss.
+No new public-site or macOS 13 hardware validation; App remains ad-hoc signed.
+
 ## 1.1.2 — 2026-10-20
 
 **Patch release.** Correct existing storage, naming and release-record behavior;

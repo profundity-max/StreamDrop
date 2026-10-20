@@ -90,7 +90,13 @@ final class StateStore {
     private var blockedReason:String?
     var canWrite:Bool {validated && blockedReason==nil}
     let root: URL
-    init(root: URL = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("StreamDrop")) { self.root = root }
+    private let stateWriter:(Data,URL)throws->Void
+    let receiptRemover:(URL)throws->Void
+    init(root: URL = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("StreamDrop"),
+         stateWriter:@escaping(Data,URL)throws->Void = {try $0.write(to:$1,options:.atomic)},
+         receiptRemover:@escaping(URL)throws->Void = {try FileManager.default.removeItem(at:$0)}) {
+        self.root=root;self.stateWriter=stateWriter;self.receiptRemover=receiptRemover
+    }
     func load() throws -> AppState {try loadWithRecovery().state}
     private func readState() throws -> AppState {
         let file=root.appendingPathComponent("state.json")
@@ -120,7 +126,7 @@ final class StateStore {
         try requireWritable()
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted,.sortedKeys]
-        try encoder.encode(state).write(to:root.appendingPathComponent("state.json"),options:.atomic)
+        try stateWriter(encoder.encode(state),root.appendingPathComponent("state.json"))
     }
     func workDirectory(_ id: UUID) -> URL { root.appendingPathComponent("Transfers").appendingPathComponent(id.uuidString) }
 }

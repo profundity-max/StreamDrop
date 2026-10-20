@@ -1,7 +1,7 @@
 import XCTest
 @testable import StreamDrop
 
-final class FileNameTests:XCTestCase {
+final class FileNameTests:ReportingTestCase {
     func testLongTitlesPreserveExtensionAndFitActualDirectory() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)

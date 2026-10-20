@@ -2,7 +2,7 @@ import XCTest
 import CryptoKit
 import Darwin
 @testable import StreamDrop
-@MainActor final class DownloadTests: XCTestCase {
+@MainActor final class DownloadTests: ReportingTestCase {
     func makeQueue() throws -> (DownloadQueue, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StreamDropTest-"+UUID().uuidString)
         let queue = DownloadQueue(store:StateStore(root:root.appendingPathComponent("state")))
@@ -181,7 +181,7 @@ private final class TransferRecorder {
     func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;terminals+=1;case .finished:terminals+=1;if paused{count+=1};case .failed,.cancelled:terminals+=1;case .progress,.processing:if paused{count+=1}}}
 }
 
-final class TransferBoundaryTests:XCTestCase {
+final class TransferBoundaryTests:ReportingTestCase {
     func testInvalidResumeImmediatelyPausedProducesNoLaterTransfer() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer{try? FileManager.default.removeItem(at:root)}

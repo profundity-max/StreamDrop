@@ -1,6 +1,6 @@
 import XCTest
 @testable import StreamDrop
-final class CompletionTests:XCTestCase {
+final class CompletionTests:ReportingTestCase {
     func testMovedFileSurvivesStateSaveFailureAndReloadIsIdempotent() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer{try? FileManager.default.removeItem(at:root)}

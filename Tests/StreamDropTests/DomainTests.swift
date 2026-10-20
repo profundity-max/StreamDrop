@@ -1,6 +1,6 @@
 import XCTest
 @testable import StreamDrop
-final class DomainTests: XCTestCase {
+final class DomainTests: ReportingTestCase {
     func testURLInputKeepsQueryAndRejectsUnsupportedSchemes() throws {
         let urls = try LinkInput.parse("https://example.com/a?q=1&b=2\nhttp://localhost:123/video.mp4")
         XCTAssertEqual(urls.count, 2)

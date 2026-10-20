@@ -24,7 +24,8 @@ an available @oai/artifact-tool installation may be used without that variable.
 node scripts/release-workbook.mjs
 python3 scripts/check-release.py
 python3 scripts/test-release-records.py
-python3 scripts/test.py
+python3 scripts/test-test-gate.py
+python3 scripts/test.py --require-tools
 ./scripts/build.sh
 ```
 
@@ -33,6 +34,11 @@ The consistency check reads Excel cells directly and compares every source row.
 The latest release's `notes` array owns compatibility and limitation text; the
 builder renders it and the independent checker verifies it. Checks remain active
 under `python3 -O`; the regression script exercises both interpreter modes.
+Strict XCTest coverage comes from an XCTest observer's event report, not SwiftPM
+console parsing. Empty, incomplete, failed or skipped coverage fails the gate.
+The gate tests compile a disposable XCTest package with a real skipped case to
+verify producer-to-checker behavior. The macOS GitHub workflow runs these commands
+and builds/verifies packages; it does not publish releases or attest human review.
 For a Codex artifact creation, run the spreadsheet skill's artifact-operation marker
 before the first authoring run. Do not install or upgrade unrelated runtime software.
 

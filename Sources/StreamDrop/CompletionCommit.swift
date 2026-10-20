@@ -120,7 +120,7 @@ extension StateStore {
             cleaned.completionCleanup?.removeAll{$0==receipt.job.id}
             try save(cleaned)
             state=cleaned
-            try FileManager.default.removeItem(at:receiptPath(receipt.job.id))
+            try receiptRemover(receiptPath(receipt.job.id))
         }catch{throw CleanupFailure(reason:error.localizedDescription)}
     }
 }

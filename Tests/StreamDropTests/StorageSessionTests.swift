@@ -1,7 +1,7 @@
 import XCTest
 @testable import StreamDrop
 
-@MainActor final class StorageSessionTests:XCTestCase {
+@MainActor final class StorageSessionTests:ReportingTestCase {
     func testUnreadableAndFutureStateRejectEveryWritePath() throws {
         var future=AppState();future.version=99
         for data in [Data("broken state evidence".utf8),try JSONEncoder().encode(future)] {

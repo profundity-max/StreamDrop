@@ -1,7 +1,7 @@
 import XCTest
 import AVFoundation
 @testable import StreamDrop
-@MainActor final class CompatibilityTests:XCTestCase {
+@MainActor final class CompatibilityTests:ReportingTestCase {
     func testPauseAfterWebFailureQueuedSettlesAndReleasesSlot() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)

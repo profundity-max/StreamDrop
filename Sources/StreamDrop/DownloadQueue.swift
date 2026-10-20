@@ -11,6 +11,8 @@ import Combine
     private var tokens:[UUID:UUID]=[:]
     private var completionCleanup:[UUID]?
     private var loading=true
+    private var shuttingDown=false
+    private var shutdownWaiters:[CheckedContinuation<Void,Never>]=[]
     private var progressSave=Date.distantPast
     init(store:StateStore=StateStore()) {
         self.store=store
@@ -19,6 +21,7 @@ import Combine
         loading=false
     }
     func add(_ text:String,kind:SourceKind = .automatic,mode:MediaMode = .video,quality:String?=nil) throws {
+        guard !shuttingDown else{throw InputError.invalid("应用正在退出，未开始新下载。")}
         try store.requireWritable()
         let urls=try LinkInput.parse(text)
         var additions=urls.map{ DownloadJob(url:$0,kind:kind,mode:mode,quality:quality ?? preferences.quality,folder:preferences.folder) }
@@ -31,7 +34,7 @@ import Combine
         catch {self.error="无法保存下载状态：\(error.localizedDescription)"}
     }
     private func schedule() {
-        guard !loading,store.canWrite else{return}
+        guard !loading,!shuttingDown,store.canWrite else{return}
         let capacity=max(1,min(6,preferences.concurrency))
         while transfers.count<capacity,let job=jobs.first(where:{$0.status == .queued}) {start(job)}
     }
@@ -84,6 +87,10 @@ import Combine
             apply(state)
         }
         tokens[id]=nil;transfers[id]=nil;persist();schedule()
+        if transfers.isEmpty {
+            let waiters=shutdownWaiters;shutdownWaiters=[]
+            for waiter in waiters{waiter.resume()}
+        }
     }
     private var currentState:AppState {AppState(completionCleanup:completionCleanup,jobs:jobs,history:history,preferences:preferences)}
     private func apply(_ state:AppState){jobs=state.jobs;history=state.history;completionCleanup=state.completionCleanup}
@@ -103,14 +110,19 @@ import Combine
         } else if job.status != .completed {update(id){$0.status = .cancelled;$0.detail="已取消，可重试。"};persist()}
     }
     func resume(_ id:UUID) {
+        guard !shuttingDown else{return}
         guard let job=jobs.first(where:{$0.id==id}),[.paused,.failed,.cancelled].contains(job.status),transfers[id]==nil else{return}
         update(id){$0.status = .queued;$0.detail=""};persist();schedule()
     }
     func pauseAll() {for job in jobs where job.status.active || job.status == .queued {pause(job.id)}}
-    func resumeAll() {for i in jobs.indices where [.paused,.failed,.cancelled].contains(jobs[i].status) {jobs[i].status = .queued};persist();schedule()}
+    func resumeAll() {guard !shuttingDown else{return};for i in jobs.indices where [.paused,.failed,.cancelled].contains(jobs[i].status) {jobs[i].status = .queued};persist();schedule()}
     func clearCompleted() {jobs.removeAll{$0.status == .completed};persist()}
     func remove(_ id:UUID) {guard transfers[id]==nil else{return};jobs.removeAll{$0.id==id};persist()}
     func removeHistory(_ id:UUID) {history.removeAll{$0.id==id};persist()}
     func clearHistory() {history=[];persist()}
-    func shutdown() {pauseAll();persist()}
+    func shutdown() async {
+        shuttingDown=true;pauseAll();persist()
+        if !transfers.isEmpty {await withCheckedContinuation{shutdownWaiters.append($0)}}
+        persist()
+    }
 }

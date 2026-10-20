@@ -115,7 +115,7 @@ struct DownloadRow:View {
                 } else {Button{queue.resume(job.id)}label:{Image(systemName:job.status == .paused ? "play.circle" : "arrow.clockwise.circle")}.help(job.status == .paused ? "继续下载" : "重试")}
             }.font(.system(size:18)).buttonStyle(.plain).foregroundStyle(accent)
         }.padding(12).background(Color(nsColor:.controlBackgroundColor),in:RoundedRectangle(cornerRadius:12)).overlay(RoundedRectangle(cornerRadius:12).stroke(.gray.opacity(0.08)))
-         .sheet(isPresented:$showingDiagnostics){DownloadErrorView(job:job,work:queue.store.workDirectory(job.id))}
+         .sheet(isPresented:$showingDiagnostics){DownloadErrorView(job:job,work:queue.store.workDirectory(job.id),preferences:queue.preferences)}
          .accessibilityElement(children:.contain).accessibilityLabel("\(job.title)，\(job.status.label)")
          .contextMenu {
              Button("复制原始链接"){NSPasteboard.general.clearContents();NSPasteboard.general.setString(job.url.absoluteString,forType:.string)}
@@ -172,6 +172,8 @@ struct HistoryView:View {
 struct DownloadErrorView:View {
     let job:DownloadJob
     let work:URL
+    let preferences:Preferences
+    @State private var report:String?
     @Environment(\.dismiss) var dismiss
     private var logURL:URL {work.appendingPathComponent("yt-dlp.log")}
     private var diagnostic:String {(try? String(contentsOf:logURL,encoding:.utf8)) ?? job.detail}
@@ -182,10 +184,17 @@ struct DownloadErrorView:View {
             Text(job.url.absoluteString).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             ScrollView {Text(diagnostic).font(.system(size:11,design:.monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading).padding(10)}.frame(height:210).background(canvas,in:RoundedRectangle(cornerRadius:8))
             HStack{
-                Button("复制诊断"){NSPasteboard.general.clearContents();NSPasteboard.general.setString("来源：\(job.url.absoluteString)\n\(diagnostic)",forType:.string)}
+                Button(report==nil ? "复制诊断（版本检查中）" : "复制诊断"){
+                    let available=report ?? DownloadDiagnostics.report(job:job,diagnostic:diagnostic,tools:[])+"\n工具版本检查尚未结束。"
+                    NSPasteboard.general.clearContents();NSPasteboard.general.setString(available,forType:.string)
+                }
                 Button("显示日志"){NSWorkspace.shared.activateFileViewerSelecting([logURL])}.disabled(!FileManager.default.fileExists(atPath:logURL.path))
                 Spacer();Button("关闭"){dismiss()}.keyboardShortcut(.defaultAction)
             }
-        }.padding(20).frame(width:600).tint(accent)
+        }.padding(20).frame(width:600).tint(accent).task{
+            async let yt=ToolHealth.shared.check(.ytDLP,configured:preferences.ytDLP)
+            async let ff=ToolHealth.shared.check(.ffmpeg,configured:preferences.ffmpeg)
+            report=await DownloadDiagnostics.report(job:job,diagnostic:diagnostic,tools:[yt,ff])
+        }
     }
 }
