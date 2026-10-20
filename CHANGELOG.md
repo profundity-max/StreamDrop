@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1 — 2026-10-20
+
+**Patch release.** Correct CI fixture startup and diagnostics without changing App
+behavior or user data. The published 1.2.0 tag is retained.
+
+- Use the runner's system Python for verification, matching the locally verified
+  interpreter family instead of an ambient Homebrew Python.
+- Allow up to 30 seconds for fixture readiness, report elapsed startup time and
+  process identity, fail immediately if a fixture exits, and use unbuffered logs.
+
+The first 1.2.0 hosted run timed out waiting for loopback port 18764 after five
+seconds; its server log was empty. That establishes a startup failure, not its
+underlying cause. This release makes startup bounded and diagnosable and reruns
+the complete workflow. Local strict suite and completion/tool coverage remain
+required; final hosted results are linked from the GitHub Release.
+
 ## 1.2.0 — 2026-10-20
 
 **Minor release.** Add compatible tool-health and diagnostic capabilities, and

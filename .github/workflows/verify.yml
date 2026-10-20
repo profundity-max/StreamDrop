@@ -28,21 +28,21 @@ jobs:
           yt-dlp --version
       - name: Verify release records and gates
         run: |
-          python3 scripts/check-release.py
-          python3 -O scripts/check-release.py
-          python3 scripts/test-release-records.py
-          python3 scripts/test-test-gate.py
+          /usr/bin/python3 scripts/check-release.py
+          /usr/bin/python3 -O scripts/check-release.py
+          /usr/bin/python3 scripts/test-release-records.py
+          /usr/bin/python3 scripts/test-test-gate.py
       - name: Run all download regressions without skips
-        run: python3 scripts/test.py --require-tools
+        run: /usr/bin/python3 scripts/test.py --require-tools
       - name: Build universal App and verify package
         run: |
           ./scripts/build.sh
-          python3 scripts/check-release.py --built
+          /usr/bin/python3 scripts/check-release.py --built
           codesign --verify --deep --strict output/StreamDrop.app
           hdiutil verify output/StreamDrop.dmg
       - name: Verify release tag
         if: startsWith(github.ref, 'refs/tags/v')
-        run: python3 scripts/check-release.py --built --tag
+        run: /usr/bin/python3 scripts/check-release.py --built --tag
       - name: Retain verification logs
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

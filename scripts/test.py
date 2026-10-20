@@ -2,6 +2,7 @@
 """Run real loopback workflows with private, synthetic media and owned servers."""
 from pathlib import Path
 import os, shutil, socket, subprocess, sys, tempfile, time
+from test_servers import wait_for_servers
 root=Path(__file__).resolve().parents[1]
 logdir=root/'.test-output'
 logdir.mkdir(exist_ok=True)
@@ -29,16 +30,10 @@ with tempfile.TemporaryDirectory(prefix='streamdrop-fixture-') as temp:
     try:
         env=dict(os.environ,STREAMDROP_FIXTURE_MEDIA=str(media),STREAMDROP_FIXTURE_VP9=str(vp9))
         with open(logdir/'servers.log','w') as server_log:
-            servers.append(subprocess.Popen([sys.executable,str(root/'scripts/fixture-server.py')],env=env,stdout=server_log,stderr=subprocess.STDOUT))
-            servers.append(subprocess.Popen([sys.executable,'-m','http.server','18765','--bind','127.0.0.1','--directory',str(fixture)],stdout=server_log,stderr=subprocess.STDOUT))
-            for port in (18764,18765):
-                deadline=time.monotonic()+5
-                while True:
-                    try:
-                        with socket.create_connection(('127.0.0.1',port),timeout=.2):break
-                    except OSError:
-                        if time.monotonic()>deadline:raise RuntimeError(f'Server {port} did not start')
-                        time.sleep(.05)
+            servers.append(subprocess.Popen([sys.executable,'-u',str(root/'scripts/fixture-server.py')],env=env,stdout=server_log,stderr=subprocess.STDOUT))
+            servers.append(subprocess.Popen([sys.executable,'-u','-m','http.server','18765','--bind','127.0.0.1','--directory',str(fixture)],stdout=server_log,stderr=subprocess.STDOUT))
+            print(f'Fixture interpreter: {sys.executable}; PIDs: {[server.pid for server in servers]}',flush=True)
+            wait_for_servers(servers,(18764,18765))
             started=time.monotonic()
             report=logdir/'tests.xml'
             report.unlink(missing_ok=True)

@@ -1,9 +1,15 @@
 from pathlib import Path
 import os, subprocess, sys, tempfile, unittest
+from test_servers import wait_for_servers
 
 ROOT=Path(__file__).resolve().parents[1]
 
 class CoverageGateTests(unittest.TestCase):
+    def testExitedFixtureFailsImmediatelyWithProcessReason(self):
+        child=subprocess.Popen([sys.executable,'-c','raise SystemExit(7)'])
+        child.wait(timeout=5)
+        with self.assertRaisesRegex(RuntimeError,'exited with 7'):
+            wait_for_servers([child],[18764],timeout=.1)
     def testXCTestObserverReportsAnActualSkippedTest(self):
         with tempfile.TemporaryDirectory(prefix='streamdrop-observer-') as temp:
             root=Path(temp);tests=root/'Tests/ObserverFixture';tests.mkdir(parents=True)

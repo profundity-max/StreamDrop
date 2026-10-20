@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/profundity-max/StreamDrop",
-  "currentVersion": "1.2.0",
+  "currentVersion": "1.2.1",
   "releases": [
     {
       "version": "1.0.0",
@@ -116,26 +116,31 @@
         "本轮使用本地合成媒体；未重新验证公共站点或 macOS 13 实机。",
         "跨卷中断归属未知时保留现场；App 为 ad-hoc 签名，未公证。"
       ]
+    },
+    {
+      "version": "1.2.1",
+      "date": "2026-10-20",
+      "kind": "补丁版本",
+      "status": "正式标签版本",
+      "build": 9,
+      "ref": "v1.2.1",
+      "reason": "修正 CI 测试服务启动和诊断，不改变 App 操作或用户数据。",
+      "summary": "CI 使用系统 Python；就绪等待有界；记录实际启动耗时；服务退出立即失败。",
+      "tests": 40,
+      "limitations": "1.2.0 首次 CI 启动失败的底层原因未确认；未扩大公共站点及硬件覆盖。",
+      "notes": [
+        "保持 1.2.0 的退出、工具检查与诊断功能，旧数据无需迁移。",
+        "CI 环境及测试启动修正；远端完整结果见 GitHub Release 链接。",
+        "不移动已发布标签；未新增公共站点、跨卷或 macOS 13 实机验证。"
+      ]
     }
   ],
   "changes": [
     {
-      "area": "退出与完成恢复",
-      "summary": "退出等待下载、转换和工具检查收尾；清理失败保留恢复凭据。",
-      "verification": "直链与转换阶段退出后重载完成且历史唯一；最终保存和凭据删除故障回归通过。",
-      "ref": "v1.2.0"
-    },
-    {
-      "area": "工具与诊断",
-      "summary": "实际检查工具版本及运行状态，复制诊断附 App、系统和当前工具信息。",
-      "verification": "真实工具检查、错误输出、缺失、失败、超时、取消及退出清理测试通过。",
-      "ref": "v1.2.0"
-    },
-    {
-      "area": "自动验证",
-      "summary": "GitHub macOS 工作流验证完整回归、版本 Excel、构建、签名及 DMG。",
-      "verification": "严格模式拒绝缺工具、失败、跳过、空报告；实际 XCTest 跳过事件贯穿校验。",
-      "ref": "v1.2.0"
+      "area": "CI 启动与诊断",
+      "summary": "明确系统 Python，允许有界启动时间，记录就绪耗时并检查服务退出原因。",
+      "verification": "真实退出码 7 的服务被立即拒绝；完整本地下载回归和发布门禁继续验证。",
+      "ref": "v1.2.1"
     }
   ]
 }
