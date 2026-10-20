@@ -78,7 +78,7 @@ struct MainView:View {
              };return true
          }
          .alert("StreamDrop",isPresented:Binding(get:{queue.error != nil},set:{if !$0{queue.error=nil}})){Button("好"){queue.error=nil}}message:{Text(queue.error ?? "")}
-         .alert("使用说明",isPresented:$showHelp){Button("好",role:.cancel){}}message:{Text("粘贴、拖入或用 ⌘L 添加 HTTP(S) 链接。直链无需额外工具；网页视频使用设置中检测到的 yt-dlp。\n\n下载卡片支持暂停、继续、取消和重试。已完成的文件可在 Finder 中显示。历史记录及设置仅保存在本机。\n\nStreamDrop 是独立实现，与 Downie 无关联。")}
+         .alert("使用说明",isPresented:$showHelp){Button("好",role:.cancel){}}message:{Text("粘贴、拖入或用 ⌘L 添加 HTTP(S) 链接。直链无需额外工具；网页视频使用设置中检测到的 yt-dlp。\n\n下载卡片支持暂停、继续、取消和重试。已完成的文件可在 Finder 中显示。历史记录及设置仅保存在本机。")}
     }
     private func paste(){draft=LinkDraft(text:NSPasteboard.general.string(forType:.string) ?? "")}
 }
@@ -100,6 +100,7 @@ struct DownloadRow:View {
                     if job.status == .completed {
                         if let size=job.fileSize {Text(byteString(size))}
                     } else if job.received>0 {Text(byteString(job.received)+(job.expected>0 ? " / "+byteString(job.expected):""))}
+                    if job.status == .completed {Text(job.playback?.label ?? "无画面验证记录").help(job.playback?.detail ?? "旧记录没有保存兼容性观察。") }
                     if !job.detail.isEmpty {Text(displayDetail).lineLimit(2).help(job.detail)}
                 }.font(.system(size:10)).foregroundStyle(job.status == .failed ? Color.red : Color.secondary)
             }
@@ -114,7 +115,7 @@ struct DownloadRow:View {
                 } else {Button{queue.resume(job.id)}label:{Image(systemName:job.status == .paused ? "play.circle" : "arrow.clockwise.circle")}.help(job.status == .paused ? "继续下载" : "重试")}
             }.font(.system(size:18)).buttonStyle(.plain).foregroundStyle(accent)
         }.padding(12).background(Color(nsColor:.controlBackgroundColor),in:RoundedRectangle(cornerRadius:12)).overlay(RoundedRectangle(cornerRadius:12).stroke(.gray.opacity(0.08)))
-         .sheet(isPresented:$showingDiagnostics){DownloadErrorView(job:job,work:queue.store.workDirectory(job.id))}
+         .sheet(isPresented:$showingDiagnostics){DownloadErrorView(job:job,work:queue.store.workDirectory(job.id),preferences:queue.preferences)}
          .accessibilityElement(children:.contain).accessibilityLabel("\(job.title)，\(job.status.label)")
          .contextMenu {
              Button("复制原始链接"){NSPasteboard.general.clearContents();NSPasteboard.general.setString(job.url.absoluteString,forType:.string)}
@@ -161,7 +162,7 @@ struct HistoryView:View {
     var body:some View {
         VStack(spacing:0){
             if items.isEmpty {VStack{Spacer();Text(queue.history.isEmpty ? "没有下载" : "没有匹配的记录").font(.system(size:22,weight:.bold)).foregroundStyle(.secondary);Spacer()}.frame(maxWidth:.infinity)}
-            else {List(items){job in HStack(spacing:14){Image(systemName:"checkmark.circle.fill").foregroundStyle(.green);VStack(alignment:.leading,spacing:3){Text(job.title).fontWeight(.medium);Text(job.url.absoluteString).font(.caption).foregroundStyle(.secondary).lineLimit(1);Text(job.completedAt ?? job.created,style:.date).font(.caption2).foregroundStyle(.secondary)};Spacer();Button("显示"){reveal(job)};Button("再下载"){do{try queue.add(job.url.absoluteString,kind:job.kind,mode:job.mode,quality:job.quality)}catch{queue.error=error.localizedDescription}}}.contextMenu{Button("移除记录（保留文件）"){queue.removeHistory(job.id)}}}}
+            else {List(items){job in HStack(spacing:14){Image(systemName:"checkmark.circle.fill").foregroundStyle(.green);VStack(alignment:.leading,spacing:3){Text(job.title).fontWeight(.medium);Text(job.url.absoluteString).font(.caption).foregroundStyle(.secondary).lineLimit(1);Text(job.playback?.label ?? "无画面验证记录").font(.caption2).foregroundStyle(.secondary).help(job.playback?.detail ?? "旧记录没有保存兼容性观察。");Text(job.completedAt ?? job.created,style:.date).font(.caption2).foregroundStyle(.secondary)};Spacer();Button("显示"){reveal(job)};Button("再下载"){do{try queue.add(job.url.absoluteString,kind:job.kind,mode:job.mode,quality:job.quality)}catch{queue.error=error.localizedDescription}}}.contextMenu{Button("移除记录（保留文件）"){queue.removeHistory(job.id)}}}}
             HStack{Text("\(queue.history.count) 条记录 · 文件保留在原位置").font(.caption).foregroundStyle(.secondary);Spacer()}.padding(10)
         }.background(canvas).searchable(text:$search,prompt:"搜索").toolbar{Menu("行为"){Button("清空历史记录…"){confirm=true}.disabled(queue.history.isEmpty)}}.frame(minWidth:640,minHeight:350)
          .alert("清空历史记录？",isPresented:$confirm){Button("取消",role:.cancel){};Button("清空记录",role:.destructive){queue.clearHistory()}}message:{Text("仅删除本应用的记录，不删除已下载文件。")}
@@ -171,6 +172,8 @@ struct HistoryView:View {
 struct DownloadErrorView:View {
     let job:DownloadJob
     let work:URL
+    let preferences:Preferences
+    @State private var report:String?
     @Environment(\.dismiss) var dismiss
     private var logURL:URL {work.appendingPathComponent("yt-dlp.log")}
     private var diagnostic:String {(try? String(contentsOf:logURL,encoding:.utf8)) ?? job.detail}
@@ -181,10 +184,17 @@ struct DownloadErrorView:View {
             Text(job.url.absoluteString).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             ScrollView {Text(diagnostic).font(.system(size:11,design:.monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading).padding(10)}.frame(height:210).background(canvas,in:RoundedRectangle(cornerRadius:8))
             HStack{
-                Button("复制诊断"){NSPasteboard.general.clearContents();NSPasteboard.general.setString("来源：\(job.url.absoluteString)\n\(diagnostic)",forType:.string)}
+                Button(report==nil ? "复制诊断（版本检查中）" : "复制诊断"){
+                    let available=report ?? DownloadDiagnostics.report(job:job,diagnostic:diagnostic,tools:[])+"\n工具版本检查尚未结束。"
+                    NSPasteboard.general.clearContents();NSPasteboard.general.setString(available,forType:.string)
+                }
                 Button("显示日志"){NSWorkspace.shared.activateFileViewerSelecting([logURL])}.disabled(!FileManager.default.fileExists(atPath:logURL.path))
                 Spacer();Button("关闭"){dismiss()}.keyboardShortcut(.defaultAction)
             }
-        }.padding(20).frame(width:600).tint(accent)
+        }.padding(20).frame(width:600).tint(accent).task{
+            async let yt=ToolHealth.shared.check(.ytDLP,configured:preferences.ytDLP)
+            async let ff=ToolHealth.shared.check(.ffmpeg,configured:preferences.ffmpeg)
+            report=await DownloadDiagnostics.report(job:job,diagnostic:diagnostic,tools:[yt,ff])
+        }
     }
 }

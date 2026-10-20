@@ -4,6 +4,8 @@ import AppKit
 struct PreferencesView:View {
     @ObservedObject var queue:DownloadQueue
     @State private var section="通用"
+    @State private var toolChecks:[MediaTool:ToolObservation]=[:]
+    @State private var checking=false
     private let sections:[(String,String,Color)]=[("通用","gearshape.fill",.blue),("下载目录","externaldrive.fill",.orange),("后期处理","slider.horizontal.3",.red),("外部工具","wrench.and.screwdriver.fill",.purple),("隐私与数据","hand.raised.fill",.teal),("关于","info.circle.fill",.gray)]
     var body:some View {
         HStack(spacing:0) {
@@ -53,6 +55,24 @@ struct PreferencesView:View {
         toolField("yt-dlp",path:$queue.preferences.ytDLP)
         Text("视频合并与音频转换").font(.headline)
         toolField("ffmpeg",path:$queue.preferences.ffmpeg)
+        Text("找到路径不代表工具运行正常，请点击下方按钮检查。检查只读取版本，不安装或更新工具。").font(.caption).foregroundStyle(.secondary)
+        Button(checking ? "正在检查…" : "检查工具版本与运行状态"){
+            checking=true
+            let yt=queue.preferences.ytDLP,ff=queue.preferences.ffmpeg
+            Task {
+                async let y=ToolHealth.shared.check(.ytDLP,configured:yt)
+                async let f=ToolHealth.shared.check(.ffmpeg,configured:ff)
+                let results=await [y,f]
+                // Discard results if the user changed either selected executable.
+                if yt==queue.preferences.ytDLP,ff==queue.preferences.ffmpeg{toolChecks=Dictionary(uniqueKeysWithValues:results.map{($0.tool,$0)})}
+                checking=false
+            }
+        }.disabled(checking)
+        ForEach(MediaTool.allCases,id:\.self){tool in
+            if let result=toolChecks[tool],result.path==ToolPaths.find(tool == .ytDLP ? queue.preferences.ytDLP : queue.preferences.ffmpeg,name:tool.rawValue) {
+                Text(result.diagnostic).font(.caption).foregroundStyle(result.usable ? Color.green : Color.orange).textSelection(.enabled)
+            }
+        }
         Text("留空时检测 /opt/homebrew/bin、/usr/local/bin 和 /usr/bin。本应用只使用你已安装的工具，不会自动安装或更新软件。工具输出错误会显示在下载卡片中。 ").font(.caption).foregroundStyle(.secondary)
     }}
     func toolField(_ name:String,path:Binding<String>)->some View {VStack(alignment:.leading,spacing:8){HStack{TextField("自动检测 \(name)",text:path).textFieldStyle(.roundedBorder);Button("选择…"){let panel=NSOpenPanel();panel.canChooseDirectories=false;panel.canChooseFiles=true;panel.showsHiddenFiles=true;if panel.runModal() == .OK,let url=panel.url{path.wrappedValue=url.path}}};if let resolved=ToolPaths.find(path.wrappedValue,name:name){Label(resolved,systemImage:"checkmark.circle.fill").foregroundStyle(.green).font(.caption).textSelection(.enabled)}else{Label("未找到 \(name)",systemImage:"exclamationmark.circle").foregroundStyle(.orange).font(.caption)}}}
@@ -62,7 +82,7 @@ struct PreferencesView:View {
         Text(queue.store.root.path).font(.system(.caption,design:.monospaced)).textSelection(.enabled)
         Button("显示数据目录"){NSWorkspace.shared.open(queue.store.root)}
         Divider()
-        Text("不访问 Downie 的用户数据，不上传分析或下载记录。下载会连接你添加的网站；yt-dlp 可能连接媒体 CDN。引导提取浏览器使用临时网站数据，不导入其他浏览器 Cookie。 ").font(.caption).foregroundStyle(.secondary)
+        Text("不上传下载历史或诊断。下载会连接你添加的网站；yt-dlp 可能连接媒体 CDN。引导提取浏览器使用临时网站数据，不导入其他浏览器 Cookie。 ").font(.caption).foregroundStyle(.secondary)
     }}
-    var about:some View {VStack(alignment:.leading,spacing:14){Image(systemName:"square.and.arrow.down.fill").font(.system(size:48)).foregroundStyle(accent);Text("StreamDrop 1.0.2").font(.title2.bold());Text("基于可观察界面与行为，使用原创 Swift 代码实现的独立 macOS 下载工具。与 Downie 及其开发者没有关联。 ");Text("界面：SwiftUI / AppKit\n直链：URLSession\n公共网页：本机 yt-dlp\n合并与音频：本机 FFmpeg\n素材：SF Symbols 与原创图标").font(.caption).foregroundStyle(.secondary)}}
+    var about:some View {VStack(alignment:.leading,spacing:14){Image(systemName:"square.and.arrow.down.fill").font(.system(size:48)).foregroundStyle(accent);Text("StreamDrop \(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "开发版本")").font(.title2.bold());Text("原生 macOS 下载工具，支持文件、网页视频与音频下载，并提供队列管理和本地历史记录。 ");Text("界面：SwiftUI / AppKit\n直链：URLSession\n公共网页：本机 yt-dlp\n合并与音频：本机 FFmpeg\n素材：SF Symbols 与原创图标").font(.caption).foregroundStyle(.secondary)}}
 }

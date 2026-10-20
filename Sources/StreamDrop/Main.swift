@@ -4,17 +4,13 @@ import AppKit
 extension Notification.Name { static let addLinks=Notification.Name("StreamDrop.AddLinks"); static let pasteLinks=Notification.Name("StreamDrop.PasteLinks") }
 @MainActor final class AppDelegate:NSObject,NSApplicationDelegate {
     weak var queue:DownloadQueue?
-    private var terminationTimer:Timer?
     func applicationShouldTerminate(_ sender:NSApplication)->NSApplication.TerminateReply {
-        guard let queue,queue.jobs.contains(where:{$0.status.active}) else{return .terminateNow}
-        queue.shutdown()
-        let deadline=Date().addingTimeInterval(8)
-        terminationTimer=Timer.scheduledTimer(withTimeInterval:0.05,repeats:true){[weak self] timer in
-            Task { @MainActor in
-            if !queue.jobs.contains(where:{$0.status.active}) || Date()>deadline {
-                queue.persist();timer.invalidate();self?.terminationTimer=nil;sender.reply(toApplicationShouldTerminate:true)
-            }
-            }
+        guard let queue else{return .terminateNow}
+        Task { @MainActor in
+            async let downloads:Void=queue.shutdown()
+            async let tools:Void=ToolHealth.shared.shutdown()
+            _=await (downloads,tools)
+            sender.reply(toApplicationShouldTerminate:true)
         }
         return .terminateLater
     }

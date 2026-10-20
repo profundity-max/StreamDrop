@@ -1,7 +1,7 @@
 import XCTest
 import AVFoundation
 @testable import StreamDrop
-@MainActor final class CompatibilityTests:XCTestCase {
+@MainActor final class CompatibilityTests:ReportingTestCase {
     func testPauseAfterWebFailureQueuedSettlesAndReleasesSlot() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
@@ -26,6 +26,20 @@ import AVFoundation
         q.resume(id)
         try await Task.sleep(nanoseconds:200_000_000)
         XCTAssertEqual(q.jobs[0].status,.failed,"Retry must start after the previous slot is released")
+    }
+    func testUnknownVideoObservationSurvivesCompletionAndReload() async throws {
+        guard ToolPaths.find("",name:"yt-dlp") != nil else{throw XCTSkip("yt-dlp missing")}
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer{try? FileManager.default.removeItem(at:root)}
+        let q=DownloadQueue(store:StateStore(root:root.appendingPathComponent("state")))
+        q.preferences.folder=root.appendingPathComponent("files").path
+        try q.add("http://127.0.0.1:18764/unrecognized.mp4",kind:.webpage)
+        let deadline=Date().addingTimeInterval(15)
+        while ![.completed,.failed].contains(q.jobs[0].status),Date()<deadline{try await Task.sleep(nanoseconds:20_000_000)}
+        XCTAssertEqual(q.jobs[0].status,.completed,q.jobs[0].detail)
+        XCTAssertEqual(q.jobs[0].playback?.kind,.unknown)
+        XCTAssertFalse(q.jobs[0].playback?.detail.isEmpty ?? true)
+        XCTAssertEqual(try q.store.load().history.first?.playback?.kind,.unknown)
     }
     func testCancelDuringCompatibilityConversionNeverCreatesHistory() async throws {
         guard ToolPaths.find("",name:"yt-dlp") != nil,ToolPaths.find("",name:"ffmpeg") != nil else{throw XCTSkip("media tools missing")}
@@ -67,5 +81,8 @@ import AVFoundation
         let audioTracks=try await asset.loadTracks(withMediaType:.audio)
         XCTAssertFalse(audioTracks.isEmpty)
         XCTAssertEqual(queue.history.count,1)
+        XCTAssertEqual(queue.jobs[0].playback?.kind,.converted)
+        let reloaded=try queue.store.load()
+        XCTAssertEqual(reloaded.history.first?.playback?.kind,.converted)
     }
 }

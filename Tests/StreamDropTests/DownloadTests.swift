@@ -2,7 +2,7 @@ import XCTest
 import CryptoKit
 import Darwin
 @testable import StreamDrop
-@MainActor final class DownloadTests: XCTestCase {
+@MainActor final class DownloadTests: ReportingTestCase {
     func makeQueue() throws -> (DownloadQueue, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("StreamDropTest-"+UUID().uuidString)
         let queue = DownloadQueue(store:StateStore(root:root.appendingPathComponent("state")))
@@ -28,6 +28,7 @@ import Darwin
         XCTAssertEqual(q.history.count,2)
         let recovered=DownloadQueue(store:q.store)
         XCTAssertEqual(recovered.history.count,2)
+        XCTAssertEqual(recovered.history.first?.playback?.kind,.notChecked)
         XCTAssertEqual(recovered.jobs[0].url.query,"public=kept")
     }
     func testHTTPFailureAndHTMLNeverBecomeCompleted() async throws {
@@ -142,6 +143,22 @@ import Darwin
         XCTAssertTrue(DownloadDiagnostics.summary(log).hasPrefix("ERROR:"))
         XCTAssertTrue(q.history.isEmpty)
     }
+    func testWebFilenamePreservesTitleWithoutInjectedIDAndDoesNotOverwrite() async throws {
+        guard ToolPaths.find("",name:"yt-dlp") != nil else{throw XCTSkip("yt-dlp missing")}
+        let (q,root)=try makeQueue();defer{try? FileManager.default.removeItem(at:root)}
+        for count in 1...2 {
+            try q.add("http://127.0.0.1:18764/named-page",kind:.webpage)
+            try await wait({q.jobs.count==count && q.jobs.allSatisfy{[.completed,.failed].contains($0.status)}})
+            XCTAssertTrue(q.jobs.allSatisfy{$0.status == .completed},q.jobs.map{$0.detail}.joined(separator:"\n"))
+        }
+        for job in q.jobs {
+            XCTAssertTrue(job.title.hasPrefix("中文 视频 [2026] 标题"),job.title)
+            XCTAssertEqual(job.title.filter{$0=="["}.count,1,"Keep the title's own brackets, add no extractor ID")
+            XCTAssertEqual(job.title,URL(fileURLWithPath:try XCTUnwrap(job.outputPath)).lastPathComponent)
+        }
+        XCTAssertNotEqual(q.jobs[0].outputPath,q.jobs[1].outputPath)
+        XCTAssertEqual(q.history.count,2)
+    }
     func testActualYTDLPGenericWebpageDownload() async throws {
         guard ToolPaths.find("",name:"yt-dlp") != nil else { throw XCTSkip("yt-dlp not installed") }
         let (q,root)=try makeQueue(); defer {try? FileManager.default.removeItem(at:root)}
@@ -149,6 +166,7 @@ import Darwin
         try await wait({ q.jobs[0].status == .completed || q.jobs[0].status == .failed },seconds:30)
         XCTAssertEqual(q.jobs[0].status,.completed,q.jobs[0].detail)
         XCTAssertTrue(FileManager.default.fileExists(atPath:q.jobs[0].outputPath ?? "missing"))
+        XCTAssertEqual(q.jobs[0].playback?.kind,.decoded)
     }
 }
 
@@ -156,12 +174,14 @@ private final class TransferRecorder {
     private let lock=NSLock()
     private var paused=false
     private var count=0
+    private var terminals=0
+    var terminalCount:Int {lock.lock();defer{lock.unlock()};return terminals}
     var didPause:Bool {lock.lock();defer{lock.unlock()};return paused}
     var lateEvents:Int {lock.lock();defer{lock.unlock()};return count}
-    func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;case .progress,.finished:if paused{count+=1};default:break}}
+    func record(_ event:TransferEvent){lock.lock();defer{lock.unlock()};switch event{case .paused:paused=true;terminals+=1;case .finished:terminals+=1;if paused{count+=1};case .failed,.cancelled:terminals+=1;case .progress,.processing:if paused{count+=1}}}
 }
 
-final class TransferBoundaryTests:XCTestCase {
+final class TransferBoundaryTests:ReportingTestCase {
     func testInvalidResumeImmediatelyPausedProducesNoLaterTransfer() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer{try? FileManager.default.removeItem(at:root)}
@@ -180,6 +200,7 @@ final class TransferBoundaryTests:XCTestCase {
             XCTAssertEqual(acknowledged.wait(timeout:.now()+2),.success)
             Thread.sleep(forTimeInterval:0.08)
             XCTAssertEqual(recorder.lateEvents,0,"No active transfer may survive pause acknowledgement")
+            XCTAssertEqual(recorder.terminalCount,1,"Each adapter must settle only once, after resource cleanup")
         }
     }
 }
